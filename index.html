@@ -58,7 +58,7 @@
       <div class="sidebar-avatar" id="sidebar-avatar">여행</div>
       <div class="sidebar-user-info">
         <div class="sidebar-username" id="sidebar-username">여행덕후김민준</div>
-        <div class="sidebar-usersub">광고수익 ₩48,200</div>
+        <div class="sidebar-usersub" id="sidebar-usersub">광고수익 ₩48,200</div>
       </div>
       <span class="settings-btn">⚙️</span>
     </div>
@@ -73,7 +73,7 @@
         <span class="search-icon">🔍</span>
         <input type="text" placeholder="여행지, 맛집, 명소 검색..." id="topbar-search-input">
       </div>
-      <div class="topbar-actions">
+      <div class="topbar-actions" id="topbar-right">
         <div class="topbar-btn" onclick="App.showToast('알림 3개')">
           🔔
           <span class="notif-dot"></span>
@@ -96,10 +96,10 @@
           <!-- 히어로 배너 -->
           <div class="home-hero anim-up">
             <div class="hero-text">
-              <div class="hero-greeting">안녕하세요, 김민준님 👋</div>
+              <div class="hero-greeting" id="hero-greeting">안녕하세요, 김민준님 👋</div>
               <h1 class="hero-title"><em>찐</em>으로 다녀온 여행,<br>솔직하게 남겨주세요</h1>
               <p class="hero-sub">항공권 인증 + GPS 인증 = 100% 믿을 수 있는 찐 후기</p>
-              <div class="hero-btns">
+              <div class="hero-btns" id="hero-btns">
                 <div class="hero-btn-primary" onclick="App.navigate('write')">✏️ 찐 후기 쓰기</div>
                 <div class="hero-btn-secondary" onclick="App.navigate('feed')">🗺️ 지도로 탐색</div>
               </div>
@@ -648,7 +648,7 @@
             <label class="form-label">비밀번호</label>
             <input type="password" class="form-input" placeholder="비밀번호">
           </div>
-          <button class="btn btn-primary btn-full btn-lg" onclick="App.showToast('로그인 성공! 🎉','success');App.navigate('home')">로그인</button>
+          <button class="btn btn-primary btn-full btn-lg" onclick="App.doLogin()">로그인</button>
         </div>
         <div class="auth-footer">
           <span>계정이 없으신가요?</span>

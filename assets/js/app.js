@@ -12,8 +12,7 @@ const App = {
   reviewViewGrid: true,
 
   init() {
-    this.currentUser = getCurrentUser() || MOCK_USERS[0];
-    setCurrentUser(this.currentUser);
+    this.currentUser = getCurrentUser(); // null이면 비로그인 상태
     this.updateUserUI();
     this.bindGlobalEvents();
     this.renderRightPanel();
@@ -26,7 +25,37 @@ const App = {
     setTimeout(() => { el.style.display = 'none'; this.renderHome(); }, 450);
   },
 
+  requireLogin(action) {
+    if (this.currentUser) { action && action(); return; }
+    this.showLoginSheet();
+  },
+
+  showLoginSheet() {
+    const existing = document.getElementById('login-sheet');
+    if (existing) existing.remove();
+    const sheet = document.createElement('div');
+    sheet.id = 'login-sheet';
+    sheet.innerHTML = `
+      <div class="login-sheet-backdrop" onclick="document.getElementById('login-sheet').remove()"></div>
+      <div class="login-sheet-panel">
+        <div class="login-sheet-icon">✍️</div>
+        <div class="login-sheet-title">로그인이 필요해요</div>
+        <div class="login-sheet-desc">후기를 쓰면 내 글에 붙는 광고 수익이<br>자동으로 내 계정에 쌓여요</div>
+        <div class="login-sheet-btns">
+          <button class="sheet-btn-primary" onclick="document.getElementById('login-sheet').remove(); App.navigate('login')">로그인</button>
+          <button class="sheet-btn-secondary" onclick="document.getElementById('login-sheet').remove(); App.navigate('register')">회원가입</button>
+        </div>
+      </div>`;
+    document.body.appendChild(sheet);
+  },
+
   navigate(page, params = {}) {
+    // 로그인 필요 페이지 차단
+    const authRequired = ['write', 'profile', 'saved'];
+    if (authRequired.includes(page) && !this.currentUser) {
+      this.showLoginSheet();
+      return;
+    }
     // 로그인/회원가입은 fixed overlay
     const overlayPages = ['login', 'register'];
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -58,14 +87,39 @@ const App = {
 
   updateUserUI() {
     const u = this.currentUser;
-    if (!u) return;
-    const init = u.nickname.substring(0, 2);
-    ['sidebar-avatar', 'topbar-avatar'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = init;
-    });
-    const un = document.getElementById('sidebar-username');
-    if (un) un.textContent = u.nickname;
+    const sidebarUser = document.getElementById('sidebar-user');
+    const topbarRight = document.getElementById('topbar-right');
+
+    if (u) {
+      // 로그인 상태
+      const init = u.nickname.substring(0, 2);
+      ['sidebar-avatar', 'topbar-avatar'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = init;
+      });
+      const un = document.getElementById('sidebar-username');
+      if (un) un.textContent = u.nickname;
+      const sub = document.getElementById('sidebar-usersub');
+      if (sub) sub.textContent = `광고수익 ₩${u.totalEarnings.toLocaleString()}`;
+      if (sidebarUser) sidebarUser.onclick = () => this.navigate('profile');
+      if (topbarRight) topbarRight.innerHTML = `<div class="topbar-avatar" id="topbar-avatar" onclick="App.navigate('profile')">${init}</div>`;
+    } else {
+      // 비로그인 상태
+      if (sidebarUser) {
+        sidebarUser.onclick = null;
+        sidebarUser.innerHTML = `
+          <div class="sidebar-guest-banner" onclick="App.navigate('login')">
+            <div class="guest-banner-icon">✍️</div>
+            <div class="guest-banner-text">
+              <div class="guest-banner-title">찐후기 쓰고</div>
+              <div class="guest-banner-sub">내 후기로 수익 만들기 →</div>
+            </div>
+          </div>`;
+      }
+      if (topbarRight) topbarRight.innerHTML = `
+        <button class="topbar-login-btn" onclick="App.navigate('login')">로그인</button>
+        <button class="topbar-join-btn" onclick="App.navigate('register')">회원가입</button>`;
+    }
   },
 
   bindGlobalEvents() {
@@ -108,9 +162,26 @@ const App = {
 
   // =================== HOME ===================
   renderHome() {
+    this.renderHero();
     this.renderDestChips();
     this.renderReviewGrid();
     this.renderHomeAd();
+  },
+
+  renderHero() {
+    const greeting = document.getElementById('hero-greeting');
+    const heroBtns = document.getElementById('hero-btns');
+    if (this.currentUser) {
+      if (greeting) greeting.textContent = `안녕하세요, ${this.currentUser.nickname}님 👋`;
+      if (heroBtns) heroBtns.innerHTML = `
+        <div class="hero-btn-primary" onclick="App.navigate('write')">✏️ 찐 후기 쓰기</div>
+        <div class="hero-btn-secondary" onclick="App.navigate('feed')">🗺️ 지도로 탐색</div>`;
+    } else {
+      if (greeting) greeting.textContent = '항공권 + GPS 인증으로 믿을 수 있는 후기만';
+      if (heroBtns) heroBtns.innerHTML = `
+        <div class="hero-btn-primary" onclick="App.navigate('register')">무료로 시작하기</div>
+        <div class="hero-btn-secondary" onclick="App.navigate('feed')">🗺️ 지도로 탐색</div>`;
+    }
   },
 
   renderDestChips() {
@@ -240,6 +311,7 @@ const App = {
     document.querySelectorAll('.like-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
+        if (!this.currentUser) { this.showLoginSheet(); return; }
         const r = MOCK_REVIEWS.find(r => r.id === btn.dataset.rid);
         if (!r) return;
         r.isLiked = !r.isLiked; r.likes += r.isLiked ? 1 : -1;
@@ -563,12 +635,32 @@ const App = {
   },
 
   toggleLike(id, btn) {
+    if (!this.currentUser) { this.showLoginSheet(); return; }
     const r = MOCK_REVIEWS.find(r => r.id === id);
     if (!r) return;
     r.isLiked = !r.isLiked; r.likes += r.isLiked ? 1 : -1;
     btn.className = `detail-action-btn${r.isLiked?' liked':''}`;
     btn.innerHTML = `${r.isLiked?'❤️':'🤍'} 좋아요 ${r.likes}`;
     if (r.isLiked) this.showToast('좋아요!', 'success');
+  },
+
+  // =================== 인증 ===================
+  doLogin() {
+    // MVP: 이메일/비밀번호 무관하게 MOCK_USERS[0]으로 로그인
+    this.currentUser = MOCK_USERS[0];
+    setCurrentUser(this.currentUser);
+    this.updateUserUI();
+    this.showToast(`${this.currentUser.nickname}님, 환영해요! 🎉`, 'success');
+    this.navigate('home');
+  },
+
+  doLogout() {
+    this.currentUser = null;
+    setCurrentUser(null);
+    this.updateUserUI();
+    this.renderHome();
+    this.showToast('로그아웃 되었습니다', 'default');
+    this.navigate('home');
   },
 
   // =================== 유틸 ===================
