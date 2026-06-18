@@ -174,7 +174,7 @@ const App = {
       review.instagram ? '<span class="verify-chip instagram">📸 인스타</span>' : '',
     ].filter(Boolean).join('');
 
-    const displayName = user.nickname.length > 6 ? user.nickname.substring(0, 6) + '…' : user.nickname;
+    const displayName = user.nickname.length > 10 ? user.nickname.substring(0, 10) + '…' : user.nickname;
 
     return `
       <article class="review-card" data-review-id="${review.id}">
