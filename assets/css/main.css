@@ -519,9 +519,11 @@ ul, ol { list-style: none; }
   font-size: 0.75rem; font-weight: 800; color: white;
 }
 .rc-user-info { flex: 1; min-width: 0; }
-.rc-user-name { font-size: 0.875rem; font-weight: 700; }
-.rc-place { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rc-stars-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.rc-user-name { font-size: 0.875rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+.rc-verify-row { display: flex; gap: 3px; flex-wrap: nowrap; overflow: hidden; margin-top: 3px; }
+.rc-verify-row .verify-chip { font-size: 0.65rem; padding: 1px 5px; }
+.rc-stars-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.rc-place { font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; text-align: right; }
 
 .review-card .rc-photos { overflow: hidden; }
 .rc-photos.photos-1 .rc-photo { aspect-ratio: 16/9; }

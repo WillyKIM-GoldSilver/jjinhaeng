@@ -117,14 +117,14 @@ const App = {
     const el = document.getElementById('destination-chips');
     if (!el) return;
     const chipData = [
-      { dest: MOCK_DESTINATIONS[0], bg: 'linear-gradient(135deg,#FFB7C5,#FF7BAC)', icon: '🗾' },
-      { dest: MOCK_DESTINATIONS[1], bg: 'linear-gradient(135deg,#FFCF77,#FF9F43)', icon: '🏯' },
-      { dest: MOCK_DESTINATIONS[3], bg: 'linear-gradient(135deg,#A8E6CF,#3DC6A0)', icon: '🌴' },
-      { dest: MOCK_DESTINATIONS[6], bg: 'linear-gradient(135deg,#B8D8FF,#5BA3FF)', icon: '🏝️' },
-      { dest: MOCK_DESTINATIONS[4], bg: 'linear-gradient(135deg,#D4AAFF,#9C59F7)', icon: '🗼' },
-      { dest: MOCK_DESTINATIONS[2], bg: 'linear-gradient(135deg,#FFD6A5,#FF8C42)', icon: '🐘' },
-      { dest: MOCK_DESTINATIONS[7], bg: 'linear-gradient(135deg,#CAFFBF,#52C41A)', icon: '🌊' },
-      { dest: MOCK_DESTINATIONS[8], bg: 'linear-gradient(135deg,#BDE0FE,#4A90D9)', icon: '🗺️' },
+      { dest: MOCK_DESTINATIONS[0], bg: 'linear-gradient(135deg,#FFB7C5,#FF7BAC)', icon: '⛩️' },  // 도쿄 - 메이지신궁 도리이
+      { dest: MOCK_DESTINATIONS[1], bg: 'linear-gradient(135deg,#FFCF77,#FF9F43)', icon: '🏯' },  // 오사카 - 오사카성
+      { dest: MOCK_DESTINATIONS[3], bg: 'linear-gradient(135deg,#A8E6CF,#3DC6A0)', icon: '🐉' },  // 다낭 - 용교
+      { dest: MOCK_DESTINATIONS[6], bg: 'linear-gradient(135deg,#B8D8FF,#5BA3FF)', icon: '🌋' },  // 제주도 - 한라산
+      { dest: MOCK_DESTINATIONS[4], bg: 'linear-gradient(135deg,#D4AAFF,#9C59F7)', icon: '🏮' },  // 타이베이 - 야시장 홍등
+      { dest: MOCK_DESTINATIONS[2], bg: 'linear-gradient(135deg,#FFD6A5,#FF8C42)', icon: '🛕' },  // 방콕 - 왓아룬 사원
+      { dest: MOCK_DESTINATIONS[7], bg: 'linear-gradient(135deg,#CAFFBF,#52C41A)', icon: '🌉' },  // 부산 - 광안대교
+      { dest: MOCK_DESTINATIONS[8], bg: 'linear-gradient(135deg,#BDE0FE,#4A90D9)', icon: '🗼' },  // 파리 - 에펠탑
     ];
     el.innerHTML = chipData.map(({ dest, bg, icon }) => `
       <div class="destination-chip${dest.trending ? ' trending' : ''}" onclick="App.navigate('feed')">
@@ -174,17 +174,19 @@ const App = {
       review.instagram ? '<span class="verify-chip instagram">📸 인스타</span>' : '',
     ].filter(Boolean).join('');
 
+    const displayName = user.nickname.length > 6 ? user.nickname.substring(0, 6) + '…' : user.nickname;
+
     return `
       <article class="review-card" data-review-id="${review.id}">
         <div class="rc-header">
           <div class="rc-avatar">${user.nickname.substring(0,2)}</div>
           <div class="rc-user-info">
-            <div class="rc-user-name">${user.nickname}</div>
-            <div class="rc-place">📍 ${place?.name || '알 수 없는 장소'}</div>
+            <div class="rc-user-name">${displayName}</div>
+            <div class="rc-verify-row">${verifyBadges || '<span style="color:var(--text-tertiary);font-size:0.75rem">인증없음</span>'}</div>
           </div>
           <div class="rc-stars-wrap">
             ${this.buildStars(review.rating)}
-            <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end">${verifyBadges}</div>
+            <div class="rc-place">📍 ${place?.name || '알 수 없는 장소'}</div>
           </div>
         </div>
         ${photosHtml}
