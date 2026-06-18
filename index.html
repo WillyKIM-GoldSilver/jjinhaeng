@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3D5AFE">
+  <meta name="description" content="찐행 - 진짜 여행자가 남기는 진짜 후기">
+  <title>찐행 · 진짜 여행 후기 플랫폼</title>
+  <link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+
+<!-- 앱 로딩 -->
+<div id="app-loading">
+  <div class="logo-loading">찐행 ✈️</div>
+  <div class="logo-sub">진짜 여행자의 진짜 후기</div>
+  <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+</div>
+
+<!-- 토스트 알림 -->
+<div id="toast-container"></div>
+
+<!-- =============================================
+     앱 전체 레이아웃 (사이드바 + 메인)
+     ============================================= -->
+<div class="app-layout">
+
+  <!-- ===== 사이드바 (PC) ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-logo" onclick="App.navigate('home')">찐행 ✈️</span>
+      <span class="sidebar-logo-sub">진짜 여행 후기 플랫폼</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item active" data-page="home">
+        <span class="nav-icon">🏠</span><span>홈</span>
+      </div>
+      <div class="sidebar-nav-item" data-page="feed">
+        <span class="nav-icon">🗺️</span><span>지도 탐색</span>
+      </div>
+      <div class="sidebar-nav-item" data-page="saved">
+        <span class="nav-icon">🔖</span><span>저장한 후기</span>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-nav-item" data-page="profile">
+        <span class="nav-icon">👤</span><span>MY 페이지</span>
+      </div>
+      <div class="sidebar-nav-item" onclick="App.showToast('알림 센터')">
+        <span class="nav-icon">🔔</span><span>알림</span>
+        <span style="margin-left:auto;background:var(--accent);color:white;font-size:0.65rem;font-weight:800;padding:2px 7px;border-radius:99px;flex-shrink:0">3</span>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-nav-item write-item" data-page="write">
+        <span class="nav-icon">✏️</span><span>찐 후기 작성</span>
+      </div>
+    </nav>
+    <div class="sidebar-user" id="sidebar-user" onclick="App.navigate('profile')">
+      <div class="sidebar-avatar" id="sidebar-avatar">여행</div>
+      <div class="sidebar-user-info">
+        <div class="sidebar-username" id="sidebar-username">여행덕후김민준</div>
+        <div class="sidebar-usersub">광고수익 ₩48,200</div>
+      </div>
+      <span class="settings-btn">⚙️</span>
+    </div>
+  </aside>
+
+  <!-- ===== 메인 콘텐츠 영역 ===== -->
+  <div class="main-content">
+
+    <!-- 탑바 -->
+    <header class="topbar" id="topbar">
+      <div class="topbar-search">
+        <span class="search-icon">🔍</span>
+        <input type="text" placeholder="여행지, 맛집, 명소 검색..." id="topbar-search-input">
+      </div>
+      <div class="topbar-actions">
+        <div class="topbar-btn" onclick="App.showToast('알림 3개')">
+          🔔
+          <span class="notif-dot"></span>
+        </div>
+        <div class="topbar-btn" onclick="App.showToast('공유하기')">🔗</div>
+        <div class="topbar-avatar" id="topbar-avatar" onclick="App.navigate('profile')">여행</div>
+      </div>
+    </header>
+
+    <!-- 페이지 바디 -->
+    <div class="page-body">
+      <!-- 페이지 메인 영역 -->
+      <div class="page-main" id="page-main-area">
+
+        <!-- ============================
+             PAGE: HOME
+             ============================ -->
+        <div class="page active" id="page-home">
+
+          <!-- 히어로 배너 -->
+          <div class="home-hero anim-up">
+            <div class="hero-text">
+              <div class="hero-greeting">안녕하세요, 김민준님 👋</div>
+              <h1 class="hero-title"><em>찐</em>으로 다녀온 여행,<br>솔직하게 남겨주세요</h1>
+              <p class="hero-sub">항공권 인증 + GPS 인증 = 100% 믿을 수 있는 찐 후기</p>
+              <div class="hero-btns">
+                <div class="hero-btn-primary" onclick="App.navigate('write')">✏️ 찐 후기 쓰기</div>
+                <div class="hero-btn-secondary" onclick="App.navigate('feed')">🗺️ 지도로 탐색</div>
+              </div>
+            </div>
+            <div class="hero-stats">
+              <div class="hero-stat">
+                <span class="hero-stat-num">48,200</span>
+                <span class="hero-stat-label">누적 후기</span>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat-num">127</span>
+                <span class="hero-stat-label">여행지</span>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat-num">12,400</span>
+                <span class="hero-stat-label">인증 여행자</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 인기 여행지 -->
+          <div class="anim-up-1" style="margin-bottom:28px">
+            <div class="section-header">
+              <div>
+                <div class="section-title">🔥 지금 핫한 여행지</div>
+                <div class="section-sub">한국 여행자들이 가장 많이 후기를 남긴 곳</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="App.navigate('feed')">전체보기 →</button>
+            </div>
+            <div class="destination-grid" id="destination-chips"></div>
+          </div>
+
+          <!-- 광고 (1/3 이하 제한) -->
+          <div style="margin-bottom:28px" id="home-ad-wrap"></div>
+
+          <!-- 홈 그리드: 최신후기 + 인증시스템 -->
+          <div class="home-grid">
+            <div class="home-full">
+              <div class="section-header">
+                <div>
+                  <div class="section-title">📝 최신 찐 후기</div>
+                  <div class="section-sub">인증된 여행자만 남길 수 있는 솔직한 후기</div>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn btn-ghost btn-sm" id="toggle-view-btn" onclick="App.toggleReviewView()">📋 리스트 보기</button>
+                  <button class="btn btn-secondary btn-sm" onclick="App.navigate('feed')">전체보기 →</button>
+                </div>
+              </div>
+              <div class="review-grid" id="review-feed"></div>
+            </div>
+          </div>
+
+          <!-- 인증 시스템 소개 -->
+          <div style="background:var(--primary-light);border-radius:var(--radius-2xl);padding:32px;margin-top:28px">
+            <div class="section-title" style="margin-bottom:20px">✅ 찐행만의 인증 시스템</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px">
+              <div style="background:white;padding:20px;border-radius:var(--radius-xl)">
+                <div style="font-size:1.6rem;margin-bottom:10px">✈️</div>
+                <div style="font-weight:800;margin-bottom:6px">항공권 · 선박이용권 인증</div>
+                <div style="font-size:0.8125rem;color:var(--text-secondary);line-height:1.7">실제 탑승자만 후기를 쓸 수 있어요. 이름 비교 후 개인정보는 즉시 삭제됩니다.</div>
+              </div>
+              <div style="background:white;padding:20px;border-radius:var(--radius-xl)">
+                <div style="font-size:1.6rem;margin-bottom:10px">📍</div>
+                <div style="font-weight:800;margin-bottom:6px">GPS · EXIF 위치 인증</div>
+                <div style="font-size:0.8125rem;color:var(--text-secondary);line-height:1.7">사진의 위치정보를 검증해 실제 그 장소에서 찍은 사진만 등록됩니다.</div>
+              </div>
+              <div style="background:white;padding:20px;border-radius:var(--radius-xl)">
+                <div style="font-size:1.6rem;margin-bottom:10px">💰</div>
+                <div style="font-weight:800;margin-bottom:6px">광고 수익 20% 쉐어</div>
+                <div style="font-size:0.8125rem;color:var(--text-secondary);line-height:1.7">후기에 노출된 광고 수익의 20%를 작성자에게 직접 돌려드립니다.</div>
+              </div>
+              <div style="background:white;padding:20px;border-radius:var(--radius-xl)">
+                <div style="font-size:1.6rem;margin-bottom:10px">🪪</div>
+                <div style="font-weight:800;margin-bottom:6px">본인인증 (출시 예정)</div>
+                <div style="font-size:0.8125rem;color:var(--text-secondary);line-height:1.7">정식 출시 시 PASS/아이핀 본인인증으로 더욱 신뢰할 수 있는 플랫폼이 됩니다.</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="height:40px"></div>
+        </div>
+
+        <!-- ============================
+             PAGE: FEED (지도)
+             ============================ -->
+        <div class="page" id="page-feed">
+          <div class="feed-layout">
+            <div class="feed-map-row">
+              <!-- 지도 -->
+              <div class="map-container">
+                <div class="map-placeholder">
+                  <div class="map-grid"></div>
+                  <div id="map-pins"></div>
+                  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:5;pointer-events:none">
+                    <div style="font-size:3rem;margin-bottom:8px">🗺️</div>
+                    <div style="font-weight:700;color:var(--text-secondary)">Google Maps API 연동 예정</div>
+                    <div style="font-size:0.8rem;color:var(--text-tertiary);margin-top:4px">법적 이용 범위 내 Maps JavaScript API 사용</div>
+                  </div>
+                  <div class="map-google-notice">© Google Maps API 연동 예정 (Maps JS API)</div>
+                </div>
+                <div class="map-controls">
+                  <div class="map-ctrl-btn" onclick="App.showToast('현재 위치')">📍</div>
+                  <div class="map-ctrl-btn" onclick="App.showToast('확대')">+</div>
+                  <div class="map-ctrl-btn" onclick="App.showToast('축소')">−</div>
+                </div>
+              </div>
+              <!-- 피드 사이드 패널 -->
+              <div class="feed-sidebar-panel">
+                <div class="feed-filters">
+                  <span class="tag active">전체</span>
+                  <span class="tag">🍜 음식점</span>
+                  <span class="tag">☕ 카페</span>
+                  <span class="tag">🏛️ 명소</span>
+                  <span class="tag">🛍️ 쇼핑</span>
+                  <span class="tag">🛏️ 숙소</span>
+                </div>
+                <div class="feed-list" id="feed-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================
+             PAGE: WRITE (후기 작성)
+             ============================ -->
+        <div class="page" id="page-write">
+          <div class="write-layout">
+            <!-- 메인 작성 폼 -->
+            <div class="write-main">
+              <div class="write-header-bar">
+                <div class="back-btn" onclick="App.navigate('home')">‹</div>
+                <div class="write-page-title">✏️ 찐 후기 작성</div>
+                <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="App.showToast('임시저장 완료!')">임시저장</button>
+              </div>
+
+              <!-- 진행 단계 -->
+              <div class="write-steps-bar">
+                <div class="write-step-item active" data-step="1">
+                  <div class="write-step-dot active">1</div>
+                  <span class="write-step-label">이동수단 인증</span>
+                </div>
+                <div class="write-step-line" id="sline-1"></div>
+                <div class="write-step-item" data-step="2">
+                  <div class="write-step-dot">2</div>
+                  <span class="write-step-label">사진 업로드</span>
+                </div>
+                <div class="write-step-line" id="sline-2"></div>
+                <div class="write-step-item" data-step="3">
+                  <div class="write-step-dot">3</div>
+                  <span class="write-step-label">장소 선택</span>
+                </div>
+                <div class="write-step-line" id="sline-3"></div>
+                <div class="write-step-item" data-step="4">
+                  <div class="write-step-dot">4</div>
+                  <span class="write-step-label">후기 작성</span>
+                </div>
+              </div>
+
+              <!-- STEP 1 -->
+              <div class="write-body write-step-content" id="write-step-1">
+                <div class="write-notice info">
+                  <span class="notice-icon">ℹ️</span>
+                  <div class="notice-text"><strong>찐행의 핵심 인증 시스템</strong><br>실제로 여행을 다녀온 분만 후기를 쓸 수 있습니다. 항공권·선박이용권의 이름과 회원 여권 영문명을 비교한 후, <strong>개인정보는 즉시 삭제</strong>됩니다.</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">이동 수단 선택 <span class="required">*</span></label>
+                  <div class="transport-grid">
+                    <div class="transport-option" onclick="selectTransport(this,'flight')">
+                      <div class="to-icon">✈️</div>
+                      <div class="to-name">항공권</div>
+                      <div class="to-sub">국제선 / 국내선</div>
+                    </div>
+                    <div class="transport-option" onclick="selectTransport(this,'ship')">
+                      <div class="to-icon">⛴️</div>
+                      <div class="to-name">선박이용권</div>
+                      <div class="to-sub">도서 · 섬 지역</div>
+                    </div>
+                    <div class="transport-option" onclick="selectTransport(this,'domestic')">
+                      <div class="to-icon">🚗</div>
+                      <div class="to-name">국내 육로</div>
+                      <div class="to-sub">GPS로만 인증</div>
+                    </div>
+                    <div class="transport-option" onclick="selectTransport(this,'receipt')">
+                      <div class="to-icon">🧾</div>
+                      <div class="to-name">영수증 인증</div>
+                      <div class="to-sub">이름 미표기 시</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">항공권 / 선박이용권 업로드 <span class="required">*</span></label>
+                  <div class="form-hint">📌 탑승자 성명이 영문으로 표기된 사진을 올려주세요 (모바일 캡처, 실물 사진 모두 가능)</div>
+                  <div class="upload-zone" id="ticket-upload-zone" style="margin-top:10px">
+                    <div class="upload-icon">🎫</div>
+                    <div class="upload-title">항공권 사진을 클릭하거나 드래그해서 올려주세요</div>
+                    <div class="upload-sub">JPG, PNG, PDF · 최대 10MB<br>개인정보(이름)는 비교 후 즉시 삭제되며 서버에 저장되지 않습니다</div>
+                  </div>
+                </div>
+                <div class="write-notice">
+                  <span class="notice-icon">⚠️</span>
+                  <div class="notice-text">선박이용권에 이름이 없는 경우 결제 영수증을 함께 제출하세요. 국내 육로는 항공권 없이 GPS/EXIF 인증만으로 등록 가능합니다.</div>
+                </div>
+              </div>
+
+              <!-- STEP 2 -->
+              <div class="write-body write-step-content" id="write-step-2" style="display:none">
+                <div class="form-group">
+                  <label class="form-label">여행 사진 업로드 <span class="required">*</span></label>
+                  <div class="form-hint">📍 GPS 정보가 포함된 사진이면 자동으로 위치 인증이 됩니다 · 최대 3장</div>
+                  <div class="photo-upload-grid" style="margin-top:12px">
+                    <div class="photo-slot"><span class="slot-icon">+</span></div>
+                    <div class="photo-slot"><span class="slot-icon">+</span></div>
+                    <div class="photo-slot"><span class="slot-icon">+</span></div>
+                  </div>
+                </div>
+                <div id="location-verify-result">
+                  <div class="verify-result" style="background:var(--bg)">
+                    <div class="result-icon">⏳</div>
+                    <div>
+                      <div class="result-title">위치 인증 대기중</div>
+                      <div class="result-sub">GPS 정보가 포함된 사진을 올리면 자동으로 위치가 인증됩니다</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="write-notice">
+                  <span class="notice-icon">ℹ️</span>
+                  <div class="notice-text"><strong>위치 인증이 안 된다면?</strong><br>스마트폰 카메라 설정에서 위치 태그(GPS 태그) 옵션을 ON으로 설정 후 다시 촬영해 주세요.</div>
+                </div>
+                <div class="write-notice danger">
+                  <span class="notice-icon">🚫</span>
+                  <div class="notice-text"><strong>이런 사진은 거부됩니다</strong> — 타인 사진 도용, 인터넷 다운로드 이미지, 위치 정보 조작. 적발 시 계정 정지됩니다.</div>
+                </div>
+              </div>
+
+              <!-- STEP 3 -->
+              <div class="write-body write-step-content" id="write-step-3" style="display:none">
+                <div class="form-group">
+                  <label class="form-label">여행지 선택 <span class="required">*</span></label>
+                  <div class="input-with-btn">
+                    <input type="text" class="form-input" placeholder="나라, 도시 검색 (예: 일본 도쿄)" id="dest-search">
+                    <button class="btn btn-secondary" onclick="App.showToast('검색 중...')">검색</button>
+                  </div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+                    <span class="tag" onclick="selectDest(this,'도쿄')">🗾 도쿄</span>
+                    <span class="tag" onclick="selectDest(this,'오사카')">🏯 오사카</span>
+                    <span class="tag" onclick="selectDest(this,'제주')">🏝️ 제주</span>
+                    <span class="tag" onclick="selectDest(this,'방콕')">🌴 방콕</span>
+                    <span class="tag" onclick="selectDest(this,'다낭')">🌊 다낭</span>
+                    <span class="tag" onclick="selectDest(this,'타이베이')">🗺️ 타이베이</span>
+                    <span class="tag" onclick="selectDest(this,'파리')">🗼 파리</span>
+                    <span class="tag" onclick="selectDest(this,'바르셀로나')">🏖️ 바르셀로나</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">장소명 <span class="required">*</span></label>
+                  <div class="form-hint">식당, 카페, 명소, 숙소 등 후기를 남길 장소의 이름</div>
+                  <div class="input-with-btn" style="margin-top:8px">
+                    <input type="text" class="form-input" placeholder="장소 이름 입력 또는 검색" id="place-search">
+                    <button class="btn btn-secondary" onclick="App.showToast('장소 검색...')">검색</button>
+                  </div>
+                  <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:8px">※ 서버 연동 후 Google Maps 장소 자동완성 기능이 추가됩니다</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">카테고리</label>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <span class="tag active" onclick="toggleCat(this)">🍜 음식점</span>
+                    <span class="tag" onclick="toggleCat(this)">☕ 카페</span>
+                    <span class="tag" onclick="toggleCat(this)">🏛️ 명소</span>
+                    <span class="tag" onclick="toggleCat(this)">🛍️ 쇼핑</span>
+                    <span class="tag" onclick="toggleCat(this)">🛏️ 숙소</span>
+                    <span class="tag" onclick="toggleCat(this)">🎭 액티비티</span>
+                    <span class="tag" onclick="toggleCat(this)">🌊 해변</span>
+                    <span class="tag" onclick="toggleCat(this)">🏔️ 자연</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- STEP 4 -->
+              <div class="write-body write-step-content" id="write-step-4" style="display:none">
+                <div class="form-group">
+                  <label class="form-label">별점 <span class="required">*</span></label>
+                  <div class="rating-input">
+                    <span class="rating-star">★</span><span class="rating-star">★</span>
+                    <span class="rating-star">★</span><span class="rating-star">★</span>
+                    <span class="rating-star">★</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">제목 <span class="required">*</span></label>
+                  <input type="text" class="form-input" placeholder="한 줄로 표현해 주세요 (예: 도쿄 최고 타마고야키 발견!)" id="review-title" maxlength="50">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">후기 내용 <span class="required">*</span></label>
+                  <div class="form-hint">찐 경험을 솔직하게 · 최대 500자</div>
+                  <textarea class="form-textarea" placeholder="어떤 점이 좋았나요? 다른 여행자에게 어떤 팁을 알려주고 싶으세요?&#10;&#10;광고나 협찬이 있다면 반드시 표시해 주세요." id="review-text" maxlength="500" style="margin-top:8px"></textarea>
+                  <div class="char-counter" id="text-counter">0/500</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">태그</label>
+                  <input type="text" class="form-input" placeholder="#태그 입력 (예: #현지맛집 #혼밥)">
+                </div>
+                <!-- SNS 링크 -->
+                <div style="background:var(--bg);border-radius:var(--radius-xl);padding:20px;display:flex;flex-direction:column;gap:16px">
+                  <div style="font-weight:800;font-size:0.9375rem">📱 SNS 링크 연결 (선택)</div>
+                  <div class="form-group">
+                    <label class="form-label" style="display:flex;align-items:center;gap:6px">▶️ 유튜브 링크</label>
+                    <input type="url" class="form-input" placeholder="https://youtube.com/watch?v=..." id="youtube-link">
+                  </div>
+                  <div class="write-notice" style="margin:0">
+                    <span class="notice-icon">⚠️</span>
+                    <div class="notice-text" style="font-size:0.775rem">유튜브 링크는 등록 후 검토를 거쳐 노출됩니다. <strong>허위이거나 타인의 영상으로 확인될 경우 즉시 삭제</strong>되며 계정에 패널티가 부과됩니다.</div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" style="display:flex;align-items:center;gap:6px">📸 인스타그램 링크</label>
+                    <input type="url" class="form-input" placeholder="https://instagram.com/p/..." id="instagram-link">
+                    <div class="form-hint">여행 후기 게시물 링크를 연결하면 내 인스타도 홍보됩니다!</div>
+                  </div>
+                </div>
+                <!-- 수익 안내 -->
+                <div style="background:linear-gradient(135deg,var(--primary-light),#f5e8ff);border-radius:var(--radius-xl);padding:20px;border:1.5px solid var(--primary-mid)">
+                  <div style="font-weight:900;color:var(--primary);margin-bottom:8px">💰 광고 수익 분배 안내</div>
+                  <div style="font-size:0.8125rem;color:var(--text-secondary);line-height:1.8">이 후기에 노출되는 광고 수익의 <strong style="color:var(--primary)">20%</strong>가 작성자님께 지급됩니다.<br>정산은 매월 말일 기준, 익월 10일에 등록 계좌로 입금됩니다.<br><span style="color:var(--text-tertiary);font-size:0.775rem">※ 최소 정산금액 5,000원 · MY → 수익내역에서 확인</span></div>
+                </div>
+              </div>
+
+              <!-- 하단 버튼 -->
+              <div class="write-footer-bar">
+                <button class="btn btn-outline" id="write-prev-btn" style="display:none">← 이전</button>
+                <button class="btn btn-primary" id="write-next-btn" style="min-width:140px">다음 단계 →</button>
+                <button class="btn btn-primary" id="write-submit-btn" style="display:none;min-width:160px">찐 후기 등록하기 🎉</button>
+              </div>
+            </div>
+
+            <!-- 사이드 안내 패널 -->
+            <div class="write-sidebar-hint">
+              <div class="hint-header">
+                <div class="hint-title">찐행 후기 작성 가이드</div>
+                <div class="hint-sub">4단계로 간편하게 작성하세요</div>
+              </div>
+              <div class="hint-steps">
+                <div class="hint-step">
+                  <div class="hint-step-icon">✈️</div>
+                  <div class="hint-step-text">
+                    <div class="hs-title">1단계 · 이동수단 인증</div>
+                    <div class="hs-sub">항공권·선박이용권으로 실제 여행을 인증합니다. 이름만 비교 후 즉시 삭제됩니다.</div>
+                  </div>
+                </div>
+                <div class="hint-step">
+                  <div class="hint-step-icon">📍</div>
+                  <div class="hint-step-text">
+                    <div class="hs-title">2단계 · 사진 위치 인증</div>
+                    <div class="hs-sub">GPS가 포함된 사진으로 실제 현장에서 촬영했음을 인증합니다. 최대 3장.</div>
+                  </div>
+                </div>
+                <div class="hint-step">
+                  <div class="hint-step-icon">🗺️</div>
+                  <div class="hint-step-text">
+                    <div class="hs-title">3단계 · 장소 선택</div>
+                    <div class="hs-sub">여행지와 구체적인 장소(식당, 카페, 명소 등)를 선택합니다.</div>
+                  </div>
+                </div>
+                <div class="hint-step">
+                  <div class="hint-step-icon">📝</div>
+                  <div class="hint-step-text">
+                    <div class="hs-title">4단계 · 후기 작성</div>
+                    <div class="hs-sub">별점, 제목, 500자 이내 내용을 작성하고 SNS 링크를 추가할 수 있습니다.</div>
+                  </div>
+                </div>
+                <div style="padding:16px;background:var(--bg);border-radius:var(--radius-lg);margin-top:4px">
+                  <div style="font-weight:800;font-size:0.875rem;margin-bottom:6px;color:var(--primary)">💰 수익이 발생해요!</div>
+                  <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.6">후기에 노출된 광고 수익의 <strong>20%</strong>가 매달 정산됩니다. 인기 후기일수록 더 많이 벌 수 있어요.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================
+             PAGE: PROFILE
+             ============================ -->
+        <div class="page" id="page-profile">
+          <div class="profile-layout">
+            <!-- 좌측 프로필 -->
+            <div class="profile-left">
+              <div class="profile-card">
+                <div class="profile-hero-bg">
+                  <div class="profile-avatar" id="profile-initials">여행</div>
+                  <div class="profile-name" id="profile-name">여행덕후김민준</div>
+                  <div class="profile-passport-name" id="profile-passport">KIM MIN JUN</div>
+                  <div class="profile-badges-row">
+                    <span class="profile-badge">✈️ 인증 여행자</span>
+                    <span class="profile-badge">🔥 활성 회원</span>
+                  </div>
+                </div>
+                <div class="profile-body-area">
+                  <div class="revenue-card">
+                    <div class="revenue-header">
+                      <span class="revenue-title">💰 내 광고 수익</span>
+                      <button class="btn btn-secondary btn-xs" onclick="App.showToast('정산 신청')">정산 신청</button>
+                    </div>
+                    <div class="revenue-amount"><span class="revenue-currency">₩</span><span id="total-earnings">48,200</span></div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:3px">누적 수익 (광고 수익의 20%)</div>
+                    <div class="revenue-detail">
+                      <div class="revenue-item">
+                        <div class="revenue-item-label">정산 완료</div>
+                        <div class="revenue-item-val earned">₩35,800</div>
+                      </div>
+                      <div class="revenue-item">
+                        <div class="revenue-item-label">정산 대기</div>
+                        <div class="revenue-item-val pending">₩<span id="pending-earnings">12,400</span></div>
+                      </div>
+                      <div class="revenue-item">
+                        <div class="revenue-item-label">이번 달</div>
+                        <div class="revenue-item-val" style="color:var(--primary)">₩7,100</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-num" style="color:var(--primary)" id="profile-review-count">24</div><div class="stat-label">작성한 후기</div></div>
+                    <div class="stat-card"><div class="stat-num" style="color:var(--accent)">1,243</div><div class="stat-label">받은 좋아요</div></div>
+                    <div class="stat-card"><div class="stat-num" style="color:var(--secondary-dark)">12</div><div class="stat-label">방문 나라</div></div>
+                    <div class="stat-card"><div class="stat-num" style="color:var(--accent-purple)">38</div><div class="stat-label">방문 도시</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 우측 메뉴 + 내 후기 -->
+            <div>
+              <div class="profile-menu" style="margin-bottom:20px">
+                <div class="menu-item" onclick="App.showToast('내 후기 목록')"><span class="menu-icon">📝</span><div class="menu-text"><div class="menu-title">내 후기 목록</div><div class="menu-sub">작성한 후기 24개</div></div><span class="menu-value">24</span><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="App.showToast('수익 내역')"><span class="menu-icon">💰</span><div class="menu-text"><div class="menu-title">수익 내역</div><div class="menu-sub">광고 수익 배분 내역 조회</div></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="App.showToast('정산 계좌 등록')"><span class="menu-icon">🏦</span><div class="menu-text"><div class="menu-title">정산 계좌 등록</div><div class="menu-sub">수익 받을 계좌를 등록하세요</div></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="App.navigate('login')"><span class="menu-icon">✏️</span><div class="menu-text"><div class="menu-title">프로필 수정</div><div class="menu-sub">닉네임, SNS 링크 변경</div></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="App.showToast('저장한 후기')"><span class="menu-icon">🔖</span><div class="menu-text"><div class="menu-title">저장한 후기</div></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="App.showToast('본인인증 준비중')"><span class="menu-icon">🪪</span><div class="menu-text"><div class="menu-title">본인인증</div><div class="menu-sub">서비스 정식 출시 시 도입 예정</div></div><span class="badge badge-warning" style="margin-right:8px">준비중</span><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="App.showToast('고객센터')"><span class="menu-icon">💬</span><div class="menu-text"><div class="menu-title">고객센터 / 문의</div></div><span class="menu-arrow">›</span></div>
+                <div class="menu-item" onclick="App.showToast('로그아웃 되었습니다')"><span class="menu-icon">🚪</span><div class="menu-text"><div class="menu-title" style="color:var(--accent)">로그아웃</div></div><span class="menu-arrow">›</span></div>
+              </div>
+              <div style="text-align:center;padding:16px;color:var(--text-tertiary);font-size:0.75rem">찐행 v1.0.0-prototype · MVP · © 2026 찐행</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================
+             PAGE: REVIEW DETAIL
+             ============================ -->
+        <div class="page" id="page-review-detail">
+          <div class="detail-layout">
+            <div class="detail-media" id="detail-media"></div>
+            <div class="detail-content-panel" id="detail-content-panel"></div>
+          </div>
+        </div>
+
+        <!-- ============================
+             PAGE: SAVED
+             ============================ -->
+        <div class="page" id="page-saved">
+          <div style="text-align:center;padding:80px 20px">
+            <div style="font-size:4rem;margin-bottom:20px">🔖</div>
+            <div style="font-size:1.4rem;font-weight:900;margin-bottom:8px">저장한 후기</div>
+            <div style="font-size:0.9375rem;color:var(--text-secondary);margin-bottom:28px">마음에 드는 후기를 저장해두세요<br>나중에 여행 계획 세울 때 유용합니다</div>
+            <button class="btn btn-primary btn-lg" onclick="App.navigate('home')">후기 둘러보기</button>
+          </div>
+        </div>
+
+      </div><!-- /page-main-area -->
+
+      <!-- ===== 우측 패널 (PC) ===== -->
+      <aside class="right-panel" id="right-panel">
+        <!-- 광고 슬롯 (1/3 이하) -->
+        <div id="right-ad-slot"></div>
+
+        <!-- 트렌딩 태그 -->
+        <div class="widget">
+          <div class="widget-title">🏷️ 지금 뜨는 태그</div>
+          <div class="trending-tag-list" id="trending-tags-list"></div>
+        </div>
+
+        <!-- 인기 후기 -->
+        <div class="widget">
+          <div class="widget-title">🔥 인기 후기</div>
+          <div id="hot-reviews-list"></div>
+        </div>
+
+        <!-- 플랫폼 통계 -->
+        <div class="widget">
+          <div class="widget-title">📊 찐행 통계</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.875rem;color:var(--text-secondary)">오늘 올라온 후기</span>
+              <span style="font-weight:800;color:var(--primary)">127개</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.875rem;color:var(--text-secondary)">인증된 여행자</span>
+              <span style="font-weight:800;color:var(--secondary-dark)">12,400명</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:0.875rem;color:var(--text-secondary)">이번 달 광고수익 배분</span>
+              <span style="font-weight:800;color:var(--accent-orange)">₩2,840,000</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+    </div><!-- /page-body -->
+  </div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<!-- 바텀 네비 (모바일 전용) -->
+<nav class="bottom-nav" id="bottom-nav">
+  <div class="nav-item active" data-page="home"><span class="nav-icon">🏠</span><span class="nav-label">홈</span></div>
+  <div class="nav-item" data-page="feed"><span class="nav-icon">🗺️</span><span class="nav-label">지도</span></div>
+  <div class="nav-item write-btn" data-page="write"><span class="nav-icon">✏️</span><span class="nav-label">후기</span></div>
+  <div class="nav-item" data-page="saved"><span class="nav-icon">🔖</span><span class="nav-label">저장</span></div>
+  <div class="nav-item" data-page="profile"><span class="nav-icon">👤</span><span class="nav-label">MY</span></div>
+</nav>
+
+<!-- ============================
+     PAGE: LOGIN (전체화면)
+     ============================ -->
+<div class="page" id="page-login" style="position:fixed;inset:0;z-index:500;overflow-y:auto">
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <div class="auth-card-header">
+        <span class="auth-logo">찐행 ✈️</span>
+        <div class="auth-logo-sub">진짜 여행자의 진짜 후기 플랫폼</div>
+      </div>
+      <div class="auth-card-body">
+        <div>
+          <div class="auth-title">반갑습니다!<br>찐행에 로그인하세요</div>
+          <div class="auth-subtitle">인증된 여행자만 남길 수 있는 찐 후기</div>
+        </div>
+        <div class="social-btns">
+          <div class="social-btn kakao" onclick="App.showToast('카카오 로그인 (서버 연동 예정)')">💬 카카오로 로그인</div>
+          <div class="social-btn naver" onclick="App.showToast('네이버 로그인 (서버 연동 예정)')"><span style="font-weight:900">N</span> 네이버로 로그인</div>
+          <div class="social-btn" onclick="App.showToast('구글 로그인 (준비중)')">🌐 Google로 로그인</div>
+        </div>
+        <div class="social-divider"><span>또는 이메일로 로그인</span></div>
+        <div class="auth-form">
+          <div class="form-group">
+            <label class="form-label">이메일</label>
+            <input type="email" class="form-input" placeholder="이메일 주소">
+          </div>
+          <div class="form-group">
+            <label class="form-label">비밀번호</label>
+            <input type="password" class="form-input" placeholder="비밀번호">
+          </div>
+          <button class="btn btn-primary btn-full btn-lg" onclick="App.showToast('로그인 성공! 🎉','success');App.navigate('home')">로그인</button>
+        </div>
+        <div class="auth-footer">
+          <span>계정이 없으신가요?</span>
+          <a onclick="App.navigate('register')">회원가입</a>
+          <span>·</span>
+          <a onclick="App.showToast('비밀번호 찾기')">비밀번호 찾기</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================
+     PAGE: REGISTER (전체화면)
+     ============================ -->
+<div class="page" id="page-register" style="position:fixed;inset:0;z-index:500;overflow-y:auto">
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <div class="auth-card-header">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="cursor:pointer;color:rgba(255,255,255,0.7);font-size:1.4rem" onclick="App.navigate('login')">‹</span>
+          <span class="auth-logo" style="font-size:1.4rem">찐행 회원가입</span>
+        </div>
+        <div class="register-progress"><div class="register-progress-fill" style="width:33%"></div></div>
+        <div style="font-size:0.8rem;color:rgba(255,255,255,0.6);margin-top:6px">1단계 / 3단계</div>
+      </div>
+      <div class="auth-card-body">
+        <div>
+          <div class="auth-title">기본 정보를<br>입력해 주세요</div>
+        </div>
+        <div class="auth-form">
+          <div class="form-group">
+            <label class="form-label">닉네임 <span class="required">*</span></label>
+            <input type="text" class="form-input" placeholder="사용할 닉네임 (2~10자)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">이메일 <span class="required">*</span></label>
+            <div class="input-with-btn">
+              <input type="email" class="form-input" placeholder="이메일 주소">
+              <button class="btn btn-secondary" onclick="App.showToast('인증코드 발송!')">인증요청</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">여권 영문 이름 <span class="required">*</span></label>
+            <input type="text" class="form-input" placeholder="예: KIM MIN JUN (여권 표기 기준)" style="text-transform:uppercase">
+            <div class="passport-hint">ℹ️ 여권에 기재된 영문 성명을 입력하세요. 항공권 탑승자명과 비교에 사용됩니다. 이름이 일치하지 않으면 후기를 작성할 수 없습니다.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">비밀번호 <span class="required">*</span></label>
+            <input type="password" class="form-input" placeholder="8자 이상, 영문+숫자+특수문자">
+          </div>
+          <div style="background:#FFF8E1;border-radius:var(--radius-lg);padding:14px 16px;border-left:3px solid var(--accent-orange)">
+            <div style="font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:8px">🪪 본인인증 <span class="badge badge-warning">준비중</span></div>
+            <div style="font-size:0.8rem;color:#5D4037;line-height:1.6">정식 출시 시 PASS/아이핀 본인인증이 도입됩니다. 현재는 여권 영문명으로 항공권과 매칭합니다.</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <input type="checkbox" id="terms-agree" style="margin-top:4px;flex-shrink:0">
+            <label for="terms-agree" style="font-size:0.8125rem;color:var(--text-secondary);line-height:1.6"><strong style="color:var(--text-primary)">이용약관</strong> 및 <strong style="color:var(--text-primary)">개인정보처리방침</strong>에 동의합니다. 항공권 등 탑승 정보는 이름 확인 후 즉시 삭제됩니다.</label>
+          </div>
+          <button class="btn btn-primary btn-full btn-lg" onclick="App.showToast('회원가입 완료! 찐행에 오신걸 환영합니다 🎉','success');App.navigate('home')">회원가입 완료</button>
+        </div>
+        <div class="auth-footer">
+          <span>이미 계정이 있으신가요?</span>
+          <a onclick="App.navigate('login')">로그인</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 유틸 스크립트 -->
+<script>
+function selectTransport(el, type) {
+  document.querySelectorAll('.transport-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const zone = document.getElementById('ticket-upload-zone');
+  if (!zone) return;
+  const cfg = {
+    flight: { icon:'🎫', title:'항공권 사진을 클릭하거나 드래그해서 올려주세요', sub:'JPG, PNG, PDF · 최대 10MB' },
+    ship:   { icon:'⛴️', title:'선박이용권을 업로드해 주세요', sub:'승객명 확인 후 즉시 삭제됩니다' },
+    domestic:{ icon:'📍', title:'GPS/EXIF 인증으로 대체됩니다', sub:'사진 업로드 단계에서 GPS 인증이 진행됩니다' },
+    receipt:{ icon:'🧾', title:'결제 영수증을 업로드해 주세요', sub:'이름이 표기된 영수증 또는 예약 확인서' },
+  };
+  const c = cfg[type];
+  zone.innerHTML = `<div class="upload-icon">${c.icon}</div><div class="upload-title">${c.title}</div><div class="upload-sub">${c.sub}</div>`;
+  zone.onclick = () => App.simulateTicketUpload();
+  if (type === 'domestic') { App.ticketVerified = true; zone.classList.add('verified'); App.showToast('국내 육로 선택 · GPS 인증으로 진행합니다','success'); }
+}
+function selectDest(el, dest) {
+  document.querySelectorAll('#write-step-3 .tag').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const inp = document.getElementById('place-search');
+  if (inp) inp.focus();
+  App.showToast(`${dest} 선택됨`);
+}
+function toggleCat(el) { el.classList.toggle('active'); }
+</script>
+<script src="assets/js/mock-data.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
