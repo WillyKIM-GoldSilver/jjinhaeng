@@ -475,11 +475,33 @@ API.getPopularPlaces = function(limit, category) {
   return places.sort((a,b) => b.reviewCount - a.reviewCount).slice(0, limit || 8);
 };
 
+const SESSION_TIMEOUT = 20 * 60 * 1000; // 20분 (ms)
+
 function getCurrentUser() {
   const s = localStorage.getItem('jjinhaeng_user');
-  return s ? JSON.parse(s) : null;
+  if (!s) return null;
+  const lastActivity = parseInt(localStorage.getItem('jjinhaeng_lastActivity') || '0', 10);
+  if (Date.now() - lastActivity > SESSION_TIMEOUT) {
+    // 20분 초과 → 세션 만료
+    localStorage.removeItem('jjinhaeng_user');
+    localStorage.removeItem('jjinhaeng_lastActivity');
+    return null;
+  }
+  return JSON.parse(s);
 }
+
 function setCurrentUser(user) {
-  if (user) localStorage.setItem('jjinhaeng_user', JSON.stringify(user));
-  else localStorage.removeItem('jjinhaeng_user');
+  if (user) {
+    localStorage.setItem('jjinhaeng_user', JSON.stringify(user));
+    localStorage.setItem('jjinhaeng_lastActivity', Date.now().toString());
+  } else {
+    localStorage.removeItem('jjinhaeng_user');
+    localStorage.removeItem('jjinhaeng_lastActivity');
+  }
+}
+
+function touchSession() {
+  if (localStorage.getItem('jjinhaeng_user')) {
+    localStorage.setItem('jjinhaeng_lastActivity', Date.now().toString());
+  }
 }

@@ -21,9 +21,8 @@ const App = {
   mapPlacesAutocomplete: null,
 
   init() {
-    // 프로토타입: 새로고침 시 항상 비로그인 상태로 시작
-    setCurrentUser(null);
-    this.currentUser = null;
+    // 20분 비활동 세션 만료 체크 후 복원
+    this.currentUser = getCurrentUser();
     this.updateUserUI();
     this.bindGlobalEvents();
     this.renderRightPanel();
@@ -61,6 +60,7 @@ const App = {
   },
 
   navigate(page, params = {}) {
+    touchSession(); // 활동 감지 → 세션 타이머 갱신
     const authRequired = ['write', 'profile'];
     if (authRequired.includes(page) && !this.currentUser) { this.showLoginSheet(); return; }
 
