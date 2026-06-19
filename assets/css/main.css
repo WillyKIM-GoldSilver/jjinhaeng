@@ -920,7 +920,7 @@ ul, ol { list-style: none; }
   .main-content { margin-left: 0; }
   .topbar { padding: 0 16px; }
   .topbar-search { max-width: none; }
-  .page-body { flex-direction: column; }
+  .page-body { flex-direction: column; align-items: stretch; }
   .page-main { padding: 16px 16px calc(var(--bottom-nav-height) + 20px); }
   .right-panel { display: none; }
   .bottom-nav { display: flex; }
@@ -1362,3 +1362,24 @@ ul, ol { list-style: none; }
   cursor: pointer; font-family: inherit;
 }
 .map-empty-btn:hover { filter: brightness(0.95); }
+
+/* =============================================
+   모바일 맵 레이아웃 (권위 규칙)
+   ⚠️ 기본 .map-page-layout/.map-places-panel 규칙이 위쪽 반응형 미디어쿼리(894/918)
+   보다 소스상 아래(976/1030)라 그것들을 덮어버림 → 여기 파일 끝에서 다시 잡아야 적용됨.
+   패널을 숨기지 않고 지도 아래로 스택해 모바일에서도 렌즈 토글(전체/관광지/로컬) 사용 가능.
+   ============================================= */
+@media (max-width: 767px) {
+  .map-page-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 42vh auto;
+    height: auto;
+    margin: -16px;
+  }
+  .map-places-panel {
+    display: flex;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .map-place-list { padding-bottom: calc(var(--bottom-nav-height) + 16px); }
+}
