@@ -1,5 +1,5 @@
 // =============================================
-// 찐행 — SPA 메인 앱 로직 (PC-First)
+// 찐행 — SPA 메인 앱 로직 (PC-First, 장소 중심)
 // =============================================
 
 const App = {
@@ -10,9 +10,11 @@ const App = {
   locationVerified: false,
   selectedRating: 0,
   reviewViewGrid: true,
+  selectedWritePlace: null,
+  currentCat: 'all',
 
   init() {
-    this.currentUser = getCurrentUser(); // null이면 비로그인 상태
+    this.currentUser = getCurrentUser();
     this.updateUserUI();
     this.bindGlobalEvents();
     this.renderRightPanel();
@@ -42,22 +44,17 @@ const App = {
         <div class="login-sheet-title">로그인이 필요해요</div>
         <div class="login-sheet-desc">후기를 쓰면 내 글에 붙는 광고 수익이<br>자동으로 내 계정에 쌓여요</div>
         <div class="login-sheet-btns">
-          <button class="sheet-btn-primary" onclick="document.getElementById('login-sheet').remove(); App.navigate('login')">로그인</button>
-          <button class="sheet-btn-secondary" onclick="document.getElementById('login-sheet').remove(); App.navigate('register')">회원가입</button>
+          <button class="sheet-btn-primary" onclick="document.getElementById('login-sheet').remove();App.navigate('login')">로그인</button>
+          <button class="sheet-btn-secondary" onclick="document.getElementById('login-sheet').remove();App.navigate('register')">회원가입</button>
         </div>
       </div>`;
     document.body.appendChild(sheet);
   },
 
   navigate(page, params = {}) {
-    // 로그인 필요 페이지 차단
-    const authRequired = ['write', 'profile', 'saved'];
-    if (authRequired.includes(page) && !this.currentUser) {
-      this.showLoginSheet();
-      return;
-    }
-    // 로그인/회원가입은 fixed overlay
-    const overlayPages = ['login', 'register'];
+    const authRequired = ['write', 'profile'];
+    if (authRequired.includes(page) && !this.currentUser) { this.showLoginSheet(); return; }
+
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     const target = document.getElementById(`page-${page}`);
     if (!target) return;
@@ -65,11 +62,9 @@ const App = {
     this.currentPage = page;
     window.scrollTo(0, 0);
 
-    // 사이드바 활성 상태
     document.querySelectorAll('.sidebar-nav-item[data-page]').forEach(item => {
       item.classList.toggle('active', item.dataset.page === page);
     });
-    // 바텀 네비
     document.querySelectorAll('.bottom-nav .nav-item[data-page]').forEach(item => {
       item.classList.toggle('active', item.dataset.page === page);
     });
@@ -78,10 +73,12 @@ const App = {
   },
 
   onPageEnter(page, params) {
-    if (page === 'home') this.renderHome();
-    if (page === 'feed') this.renderFeed();
-    if (page === 'write') this.initWrite();
-    if (page === 'profile') this.renderProfile();
+    if (page === 'home')          this.renderHome();
+    if (page === 'map')           this.renderMap();
+    if (page === 'search')        this.renderSearch(params.query, params.cat);
+    if (page === 'place')         this.renderPlace(params.placeId);
+    if (page === 'write')         this.initWrite();
+    if (page === 'profile')       this.renderProfile();
     if (page === 'review-detail') this.renderDetail(params.reviewId);
   },
 
@@ -91,7 +88,6 @@ const App = {
     const topbarRight = document.getElementById('topbar-right');
 
     if (u) {
-      // 로그인 상태
       const init = u.nickname.substring(0, 2);
       ['sidebar-avatar', 'topbar-avatar'].forEach(id => {
         const el = document.getElementById(id);
@@ -101,10 +97,11 @@ const App = {
       if (un) un.textContent = u.nickname;
       const sub = document.getElementById('sidebar-usersub');
       if (sub) sub.textContent = `광고수익 ₩${u.totalEarnings.toLocaleString()}`;
-      if (sidebarUser) sidebarUser.onclick = () => this.navigate('profile');
-      if (topbarRight) topbarRight.innerHTML = `<div class="topbar-avatar" id="topbar-avatar" onclick="App.navigate('profile')">${init}</div>`;
+      if (sidebarUser) { sidebarUser.onclick = () => this.navigate('profile'); }
+      if (topbarRight) topbarRight.innerHTML = `
+        <div class="topbar-btn" onclick="App.showToast('알림 3개')">🔔<span class="notif-dot"></span></div>
+        <div class="topbar-avatar" onclick="App.navigate('profile')">${init}</div>`;
     } else {
-      // 비로그인 상태
       if (sidebarUser) {
         sidebarUser.onclick = null;
         sidebarUser.innerHTML = `
@@ -123,28 +120,27 @@ const App = {
   },
 
   bindGlobalEvents() {
-    // 사이드바 네비
     document.querySelectorAll('.sidebar-nav-item[data-page]').forEach(item => {
       item.addEventListener('click', () => this.navigate(item.dataset.page));
     });
-    // 바텀 네비
     document.querySelectorAll('.bottom-nav .nav-item[data-page]').forEach(item => {
       item.addEventListener('click', () => this.navigate(item.dataset.page));
     });
-    // 검색
-    document.getElementById('topbar-search-input')?.addEventListener('input', e => {
-      if (this.currentPage === 'home') this.handleSearch(e.target.value);
-    });
-    // write 이벤트
+    // 탑바 검색창 클릭 → 검색 페이지로
+    document.getElementById('topbar-search-input')?.addEventListener('click', () => this.navigate('search'));
+
+    // write 버튼
     document.getElementById('write-next-btn')?.addEventListener('click', () => this.writeNext());
     document.getElementById('write-prev-btn')?.addEventListener('click', () => this.writePrev());
     document.getElementById('write-submit-btn')?.addEventListener('click', () => this.submitReview());
+
     // 텍스트 카운터
     document.getElementById('review-text')?.addEventListener('input', e => {
       const len = e.target.value.length;
       const el = document.getElementById('text-counter');
       if (el) { el.textContent = `${len}/500`; el.className = 'char-counter' + (len > 450 ? (len >= 500 ? ' limit' : ' warn') : ''); }
     });
+
     // 별점
     document.querySelectorAll('.rating-star').forEach((star, idx) => {
       star.addEventListener('click', () => {
@@ -152,18 +148,40 @@ const App = {
         document.querySelectorAll('.rating-star').forEach((s, i) => s.classList.toggle('active', i <= idx));
       });
     });
+
     // 사진 슬롯
     document.querySelectorAll('.photo-slot').forEach((slot, i) => {
       slot.addEventListener('click', () => this.simulatePhotoUpload(i));
     });
-    // 티켓 업로드 클릭
+
+    // 티켓 업로드
     document.getElementById('ticket-upload-zone')?.addEventListener('click', () => this.simulateTicketUpload());
+
+    // 검색창 입력 이벤트
+    const searchInput = document.getElementById('search-main-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', e => {
+        const q = e.target.value;
+        const clearBtn = document.getElementById('search-clear-btn');
+        if (clearBtn) clearBtn.style.display = q ? 'flex' : 'none';
+        this.doSearch(q, this.currentCat);
+      });
+      searchInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') this.doSearch(e.target.value, this.currentCat);
+      });
+    }
+
+    // 장소 검색 (write)
+    document.getElementById('write-place-search')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') this.searchWritePlace();
+    });
   },
 
   // =================== HOME ===================
   renderHome() {
     this.renderHero();
-    this.renderDestChips();
+    this.renderHomeCatFilter();
+    this.renderPopularPlaces();
     this.renderReviewGrid();
     this.renderHomeAd();
   },
@@ -175,43 +193,73 @@ const App = {
       if (greeting) greeting.textContent = `안녕하세요, ${this.currentUser.nickname}님 👋`;
       if (heroBtns) heroBtns.innerHTML = `
         <div class="hero-btn-primary" onclick="App.navigate('write')">✏️ 찐 후기 쓰기</div>
-        <div class="hero-btn-secondary" onclick="App.navigate('feed')">🗺️ 지도로 탐색</div>`;
+        <div class="hero-btn-secondary" onclick="App.navigate('map')">🗺️ 지도로 탐색</div>`;
     } else {
-      if (greeting) greeting.textContent = '항공권 + GPS 인증으로 믿을 수 있는 후기만';
+      if (greeting) greeting.textContent = '항공권 + GPS 인증으로 믿을 수 있는 장소 후기만';
       if (heroBtns) heroBtns.innerHTML = `
         <div class="hero-btn-primary" onclick="App.navigate('register')">무료로 시작하기</div>
-        <div class="hero-btn-secondary" onclick="App.navigate('feed')">🗺️ 지도로 탐색</div>`;
+        <div class="hero-btn-secondary" onclick="App.navigate('search')">🔍 장소 검색</div>`;
     }
   },
 
-  renderDestChips() {
-    const el = document.getElementById('destination-chips');
+  renderHomeCatFilter() {
+    const el = document.getElementById('home-cat-filter');
     if (!el) return;
-    const chipData = [
-      { dest: MOCK_DESTINATIONS[0], bg: 'linear-gradient(135deg,#FFB7C5,#FF7BAC)', icon: '⛩️' },  // 도쿄 - 메이지신궁 도리이
-      { dest: MOCK_DESTINATIONS[1], bg: 'linear-gradient(135deg,#FFCF77,#FF9F43)', icon: '🏯' },  // 오사카 - 오사카성
-      { dest: MOCK_DESTINATIONS[3], bg: 'linear-gradient(135deg,#A8E6CF,#3DC6A0)', icon: '🐉' },  // 다낭 - 용교
-      { dest: MOCK_DESTINATIONS[6], bg: 'linear-gradient(135deg,#B8D8FF,#5BA3FF)', icon: '🌋' },  // 제주도 - 한라산
-      { dest: MOCK_DESTINATIONS[4], bg: 'linear-gradient(135deg,#D4AAFF,#9C59F7)', icon: '🏮' },  // 타이베이 - 야시장 홍등
-      { dest: MOCK_DESTINATIONS[2], bg: 'linear-gradient(135deg,#FFD6A5,#FF8C42)', icon: '🛕' },  // 방콕 - 왓아룬 사원
-      { dest: MOCK_DESTINATIONS[7], bg: 'linear-gradient(135deg,#CAFFBF,#52C41A)', icon: '🌉' },  // 부산 - 광안대교
-      { dest: MOCK_DESTINATIONS[8], bg: 'linear-gradient(135deg,#BDE0FE,#4A90D9)', icon: '🗼' },  // 파리 - 에펠탑
-    ];
-    el.innerHTML = chipData.map(({ dest, bg, icon }) => `
-      <div class="destination-chip${dest.trending ? ' trending' : ''}" onclick="App.navigate('feed')">
-        <div class="chip-icon" style="background:${bg}">${icon}</div>
-        <div class="chip-name">${dest.city}</div>
-        <div class="chip-count">${dest.reviewCount.toLocaleString()}개</div>
-        ${dest.trending ? '<div class="chip-hot">🔥</div>' : ''}
-      </div>
-    `).join('');
+    el.innerHTML = PLACE_CATEGORIES.map(c => `
+      <div class="cat-filter-chip${c.id === this.currentCat ? ' active' : ''}"
+           onclick="App.selectHomeCat('${c.id}')">
+        <span>${c.icon}</span><span>${c.label}</span>
+      </div>`).join('');
   },
 
-  renderReviewGrid(reviews = MOCK_REVIEWS) {
+  selectHomeCat(catId) {
+    this.currentCat = catId;
+    this.renderHomeCatFilter();
+    this.renderPopularPlaces();
+  },
+
+  renderPopularPlaces(containerId = 'popular-places') {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const places = API.getPopularPlaces(6, this.currentCat === 'all' ? null : this.currentCat);
+    el.innerHTML = places.map(p => this.buildPlaceCard(p)).join('');
+  },
+
+  buildPlaceCard(place) {
+    const catColors = {
+      '음식점': 'linear-gradient(135deg,#FFE8D0,#FFB380)',
+      '카페':   'linear-gradient(135deg,#FFF0D0,#FFD580)',
+      '명소':   'linear-gradient(135deg,#D0E8FF,#80B8FF)',
+      '쇼핑':   'linear-gradient(135deg,#F0D0FF,#C880FF)',
+      '액티비티':'linear-gradient(135deg,#D0FFE8,#80FFB8)',
+    };
+    const bg = catColors[place.category] || 'linear-gradient(135deg,#E8ECFF,#C8D8FF)';
+    const priceStr = place.priceLevel ? '₩'.repeat(place.priceLevel) : '';
+    return `
+      <div class="place-card" onclick="App.navigate('place',{placeId:'${place.id}'})">
+        <div class="place-card-thumb" style="background:${bg}">
+          <span class="place-card-emoji">${place.emoji}</span>
+          <div class="place-card-cat-badge">${place.category}</div>
+        </div>
+        <div class="place-card-body">
+          <div class="place-card-name">${place.name}</div>
+          <div class="place-card-city">📍 ${place.city}, ${place.country}</div>
+          <div class="place-card-meta">
+            <span class="place-card-rating">⭐ ${place.rating.toFixed(1)}</span>
+            <span class="place-card-count">(${place.reviewCount})</span>
+            ${priceStr ? `<span class="place-card-price">${priceStr}</span>` : ''}
+          </div>
+          <div class="place-card-tags">${(place.tags||[]).slice(0,3).map(t=>`<span class="place-tag">#${t}</span>`).join('')}</div>
+        </div>
+      </div>`;
+  },
+
+  renderReviewGrid(reviews = null) {
     const el = document.getElementById('review-feed');
     if (!el) return;
+    const list = reviews || API.getRecentReviews(8);
     el.className = `review-grid${this.reviewViewGrid ? '' : ' list-view'}`;
-    el.innerHTML = reviews.map(r => this.buildReviewCard(r)).join('');
+    el.innerHTML = list.map(r => this.buildReviewCard(r)).join('');
     this.bindCardEvents();
   },
 
@@ -223,29 +271,28 @@ const App = {
       'linear-gradient(135deg,#E8FFF8,#C8F5E8)',
       'linear-gradient(135deg,#FFF0E8,#FFD0B8)',
     ];
-    const icons = ['🗾', '🌏', '📸'];
+    const icons = ['🗾','🌏','📸'];
     const cnt = Math.min((review.photos || []).length, 3);
 
     let photosHtml = '';
     if (cnt > 0) {
       const items = Array.from({length: cnt}, (_, i) => `
         <div class="rc-photo">
-          <div class="rc-photo-inner" style="background:${gradients[i % 3]}">
-            <span style="font-size:${i===0&&cnt===3?'2rem':'1.8rem'}">${icons[i]}</span>
-            <span style="font-size:0.75rem;color:var(--text-tertiary);font-weight:600">사진 ${i+1}</span>
+          <div class="rc-photo-inner" style="background:${gradients[i%3]}">
+            <span style="font-size:${i===0&&cnt===3?'2rem':'1.8rem'}">${icons[i%3]}</span>
           </div>
         </div>`).join('');
       photosHtml = `<div class="rc-photos photos-${cnt}">${items}</div>`;
     }
 
     const verifyBadges = [
-      review.ticketVerified ? '<span class="verify-chip ticket">✈️ 항공권</span>' : '',
-      review.locationVerified ? '<span class="verify-chip location">📍 위치</span>' : '',
-      review.youtube ? '<span class="verify-chip youtube">▶ 유튜브</span>' : '',
-      review.instagram ? '<span class="verify-chip instagram">📸 인스타</span>' : '',
+      review.ticketVerified  ? '<span class="verify-chip ticket">✈️ 항공권</span>' : '',
+      review.locationVerified? '<span class="verify-chip location">📍 위치</span>' : '',
+      review.youtube         ? '<span class="verify-chip youtube">▶ 유튜브</span>' : '',
+      review.instagram       ? '<span class="verify-chip instagram">📸 인스타</span>' : '',
     ].filter(Boolean).join('');
 
-    const displayName = user.nickname.length > 10 ? user.nickname.substring(0, 10) + '…' : user.nickname;
+    const displayName = user.nickname.length > 10 ? user.nickname.substring(0,10)+'…' : user.nickname;
 
     return `
       <article class="review-card" data-review-id="${review.id}">
@@ -257,7 +304,7 @@ const App = {
           </div>
           <div class="rc-stars-wrap">
             ${this.buildStars(review.rating)}
-            <div class="rc-place">📍 ${place?.name || '알 수 없는 장소'}</div>
+            <div class="rc-place" onclick="event.stopPropagation();App.navigate('place',{placeId:'${review.placeId}'})">📍 ${place?.name || '알 수 없는 장소'}</div>
           </div>
         </div>
         ${photosHtml}
@@ -275,12 +322,11 @@ const App = {
           <button class="rc-action" onclick="event.stopPropagation();App.shareReview('${review.id}')">🔗 공유</button>
           <span class="rc-date">${this.timeAgo(review.createdAt)}</span>
         </div>
-      </article>
-    `;
+      </article>`;
   },
 
   buildStars(n) {
-    return `<div class="stars">${[1,2,3,4,5].map(i=>`<span class="star${i<=n?' filled':''}" >★</span>`).join('')}</div>`;
+    return `<div class="stars">${[1,2,3,4,5].map(i=>`<span class="star${i<=n?' filled':''}">★</span>`).join('')}</div>`;
   },
 
   renderHomeAd() {
@@ -289,7 +335,7 @@ const App = {
     const ad = MOCK_ADS[Math.floor(Math.random() * MOCK_ADS.length)];
     const icons = { flight:'✈️', tour:'🗺️', hotel:'🏨' };
     el.innerHTML = `
-      <div class="ad-unit" onclick="App.showToast('광고 클릭! 수익 적립 🎉','success')">
+      <div class="ad-unit" onclick="App.showToast('광고 클릭! 🎉','success')">
         <span class="ad-label">광고</span>
         <div class="ad-icon">${icons[ad.category]}</div>
         <div class="ad-info">
@@ -303,7 +349,7 @@ const App = {
   toggleReviewView() {
     this.reviewViewGrid = !this.reviewViewGrid;
     const btn = document.getElementById('toggle-view-btn');
-    if (btn) btn.textContent = this.reviewViewGrid ? '📋 리스트 보기' : '⊞ 그리드 보기';
+    if (btn) btn.textContent = this.reviewViewGrid ? '📋 리스트' : '⊞ 그리드';
     this.renderReviewGrid();
   },
 
@@ -317,7 +363,7 @@ const App = {
         r.isLiked = !r.isLiked; r.likes += r.isLiked ? 1 : -1;
         btn.innerHTML = `${r.isLiked?'❤️':'🤍'} ${r.likes}`;
         btn.classList.toggle('liked', r.isLiked);
-        if (r.isLiked) this.showToast('좋아요를 눌렀습니다!', 'success');
+        if (r.isLiked) this.showToast('좋아요!', 'success');
       });
     });
     document.querySelectorAll('.review-card').forEach(card => {
@@ -327,13 +373,230 @@ const App = {
     });
   },
 
-  handleSearch(q) {
-    if (!q.trim()) { this.renderReviewGrid(); return; }
-    const filtered = MOCK_REVIEWS.filter(r =>
-      r.title.includes(q) || r.content.includes(q) ||
-      (MOCK_PLACES.find(p=>p.id===r.placeId)?.name||'').includes(q)
-    );
-    this.renderReviewGrid(filtered.length ? filtered : MOCK_REVIEWS);
+  // =================== MAP ===================
+  renderMap() {
+    this.renderMapCatChips();
+    this.renderMapPins();
+    this.renderMapPlaceList();
+  },
+
+  renderMapCatChips() {
+    const el = document.getElementById('map-cat-chips');
+    if (!el) return;
+    el.innerHTML = PLACE_CATEGORIES.map(c => `
+      <div class="map-cat-chip" onclick="App.showToast('${c.label} 필터')">
+        ${c.icon} ${c.label}
+      </div>`).join('');
+  },
+
+  renderMapPins() {
+    const el = document.getElementById('map-pins');
+    if (!el) return;
+    const pinData = [
+      { x:'28%', y:'32%', name:'도쿄', hot:true  },
+      { x:'25%', y:'41%', name:'오사카', hot:false },
+      { x:'49%', y:'63%', name:'방콕', hot:true  },
+      { x:'54%', y:'48%', name:'다낭', hot:true  },
+      { x:'51%', y:'35%', name:'타이베이', hot:false },
+      { x:'30%', y:'36%', name:'제주', hot:true  },
+      { x:'34%', y:'30%', name:'부산', hot:false },
+      { x:'20%', y:'38%', name:'서울', hot:false },
+      { x:'16%', y:'52%', name:'파리', hot:false },
+      { x:'43%', y:'45%', name:'홍콩', hot:true  },
+    ];
+    el.innerHTML = pinData.map(p => `
+      <div class="map-pin" style="left:${p.x};top:${p.y}"
+           onclick="App.showToast('${p.name} 장소 목록')">
+        <div class="pin-bubble${p.hot?' hot':''}">${p.name}</div>
+        <div class="pin-tail"></div>
+      </div>`).join('');
+  },
+
+  renderMapPlaceList() {
+    const el = document.getElementById('map-place-list');
+    if (!el) return;
+    const places = API.getPopularPlaces(10);
+    document.getElementById('map-place-count').textContent = `${places.length}개`;
+    el.innerHTML = places.map(p => `
+      <div class="map-place-item" onclick="App.navigate('place',{placeId:'${p.id}'})">
+        <div class="map-place-emoji">${p.emoji}</div>
+        <div class="map-place-info">
+          <div class="map-place-name">${p.name}</div>
+          <div class="map-place-meta">⭐ ${p.rating.toFixed(1)} · ${p.city} · ${p.category}</div>
+        </div>
+        <span class="map-place-arrow">›</span>
+      </div>`).join('');
+  },
+
+  // =================== SEARCH ===================
+  renderSearch(initQuery = '', initCat = 'all') {
+    this.currentCat = initCat || 'all';
+    this.renderSearchCatRow();
+
+    // 트렌딩 태그
+    const trendEl = document.getElementById('search-trending-tags');
+    if (trendEl) {
+      trendEl.innerHTML = TRENDING_TAGS.slice(0, 12).map(tag => `
+        <div class="trending-chip" onclick="App.quickSearch('${tag}')">#${tag}</div>`).join('');
+    }
+
+    // 검색 전 인기 장소
+    const popEl = document.getElementById('search-popular-places');
+    if (popEl) {
+      const places = API.getPopularPlaces(6);
+      popEl.innerHTML = places.map(p => this.buildPlaceCard(p)).join('');
+    }
+
+    if (initQuery) {
+      const inp = document.getElementById('search-main-input');
+      if (inp) inp.value = initQuery;
+      this.doSearch(initQuery, this.currentCat);
+    }
+  },
+
+  renderSearchCatRow() {
+    const el = document.getElementById('search-cat-row');
+    if (!el) return;
+    el.innerHTML = PLACE_CATEGORIES.map(c => `
+      <div class="search-cat-chip${c.id === this.currentCat ? ' active' : ''}"
+           onclick="App.selectSearchCat('${c.id}')">
+        ${c.icon} ${c.label}
+      </div>`).join('');
+  },
+
+  selectSearchCat(catId) {
+    this.currentCat = catId;
+    this.renderSearchCatRow();
+    const q = document.getElementById('search-main-input')?.value || '';
+    this.doSearch(q, catId);
+  },
+
+  quickSearch(tag) {
+    const inp = document.getElementById('search-main-input');
+    if (inp) { inp.value = tag; const cb = document.getElementById('search-clear-btn'); if (cb) cb.style.display = 'flex'; }
+    this.doSearch(tag, this.currentCat);
+  },
+
+  doSearch(q, cat) {
+    const defaultEl = document.getElementById('search-default');
+    const resultsEl = document.getElementById('search-results');
+    const metaEl = document.getElementById('search-result-meta');
+    const listEl = document.getElementById('search-result-places');
+    const noResultEl = document.getElementById('search-no-result');
+
+    if (!q || !q.trim()) {
+      if (defaultEl) defaultEl.style.display = 'block';
+      if (resultsEl) resultsEl.style.display = 'none';
+      return;
+    }
+
+    const catFilter = (cat && cat !== 'all') ? cat : null;
+    const places = API.searchPlaces(q, catFilter);
+
+    if (defaultEl) defaultEl.style.display = 'none';
+    if (resultsEl) resultsEl.style.display = 'block';
+    if (metaEl) metaEl.innerHTML = `<span class="result-keyword">"${q}"</span> 검색 결과 <span class="result-count">${places.length}개</span>`;
+
+    if (places.length === 0) {
+      if (listEl) listEl.innerHTML = '';
+      if (noResultEl) noResultEl.style.display = 'block';
+    } else {
+      if (noResultEl) noResultEl.style.display = 'none';
+      if (listEl) listEl.innerHTML = places.map(p => this.buildPlaceCard(p)).join('');
+    }
+  },
+
+  clearSearch() {
+    const inp = document.getElementById('search-main-input');
+    if (inp) inp.value = '';
+    const cb = document.getElementById('search-clear-btn');
+    if (cb) cb.style.display = 'none';
+    const defaultEl = document.getElementById('search-default');
+    const resultsEl = document.getElementById('search-results');
+    if (defaultEl) defaultEl.style.display = 'block';
+    if (resultsEl) resultsEl.style.display = 'none';
+  },
+
+  // =================== PLACE DETAIL ===================
+  renderPlace(placeId) {
+    const place = API.getPlace(placeId);
+    const el = document.getElementById('place-content');
+    if (!el || !place) return;
+
+    const reviews = API.getPlaceReviews(placeId);
+    const reviewsHtml = reviews.length
+      ? reviews.map(r => this.buildReviewCard(r)).join('')
+      : `<div style="text-align:center;padding:40px;color:var(--text-secondary)">아직 후기가 없어요. 첫 번째 찐후기를 남겨보세요!</div>`;
+
+    const priceStr = place.priceLevel ? '₩'.repeat(place.priceLevel) : '';
+    const catColors = {
+      '음식점': 'linear-gradient(135deg,#FFE8D0,#FFB380)',
+      '카페':   'linear-gradient(135deg,#FFF0D0,#FFD580)',
+      '명소':   'linear-gradient(135deg,#D0E8FF,#80B8FF)',
+      '쇼핑':   'linear-gradient(135deg,#F0D0FF,#C880FF)',
+      '액티비티':'linear-gradient(135deg,#D0FFE8,#80FFB8)',
+    };
+    const bg = catColors[place.category] || 'linear-gradient(135deg,#E8ECFF,#C8D8FF)';
+
+    el.innerHTML = `
+      <div class="place-detail-page">
+        <!-- 헤더 -->
+        <div class="place-detail-header" style="background:${bg}">
+          <div class="place-detail-back" onclick="App.navigate('search')">‹ 뒤로</div>
+          <div class="place-detail-emoji">${place.emoji}</div>
+          <div class="place-detail-info">
+            <div class="place-detail-cat">${place.category}</div>
+            <h1 class="place-detail-name">${place.name}</h1>
+            <div class="place-detail-location">📍 ${place.city}, ${place.country}</div>
+            <div class="place-detail-meta-row">
+              <span class="place-rating-big">⭐ ${place.rating.toFixed(1)}</span>
+              <span class="place-review-cnt">(${place.reviewCount}개 후기)</span>
+              ${priceStr ? `<span class="place-price">${priceStr}</span>` : ''}
+            </div>
+            <div class="place-detail-address">🏠 ${place.address}</div>
+          </div>
+        </div>
+        <!-- 태그 -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 20px">
+          ${(place.tags||[]).map(t=>`<span class="place-tag-lg">#${t}</span>`).join('')}
+        </div>
+        <!-- 광고 -->
+        <div class="ad-unit" style="margin-bottom:28px" onclick="App.showToast('광고 클릭! 🎉','success')">
+          <span class="ad-label">광고</span>
+          <div class="ad-icon">✈️</div>
+          <div class="ad-info">
+            <div class="ad-title">${MOCK_ADS[0].title}</div>
+            <div class="ad-subtitle">${MOCK_ADS[0].subtitle}</div>
+            <div class="ad-cta">${MOCK_ADS[0].cta} →</div>
+          </div>
+        </div>
+        <!-- 후기 섹션 -->
+        <div class="section-header">
+          <div>
+            <div class="section-title">📝 찐후기 ${reviews.length}개</div>
+            <div class="section-sub">인증된 방문자만 남긴 솔직한 후기</div>
+          </div>
+          <select class="sort-select" onchange="App.sortPlaceReviews('${placeId}',this.value)">
+            <option value="recent">최신순</option>
+            <option value="helpful">도움순</option>
+            <option value="rating-high">별점높은순</option>
+            <option value="rating-low">별점낮은순</option>
+          </select>
+        </div>
+        <div class="review-grid" id="place-review-grid">${reviewsHtml}</div>
+      </div>
+      <!-- 플로팅 후기 쓰기 버튼 -->
+      <div class="place-write-fab" onclick="App.navigate('write')">
+        ✏️ 이 장소 후기 쓰기
+      </div>`;
+
+    setTimeout(() => this.bindCardEvents(), 50);
+  },
+
+  sortPlaceReviews(placeId, sort) {
+    const reviews = API.getPlaceReviews(placeId, sort);
+    const el = document.getElementById('place-review-grid');
+    if (el) { el.innerHTML = reviews.map(r => this.buildReviewCard(r)).join(''); this.bindCardEvents(); }
   },
 
   // =================== RIGHT PANEL ===================
@@ -364,12 +627,11 @@ const App = {
     const el = document.getElementById('trending-tags-list');
     if (!el) return;
     el.innerHTML = TRENDING_TAGS.slice(0, 8).map((tag, i) => `
-      <div class="trending-tag-item" onclick="App.showToast('${tag} 검색')">
-        <span class="trending-tag-rank${i < 3 ? ' top' : ''}">${i + 1}</span>
+      <div class="trending-tag-item" onclick="App.navigate('search',{query:'${tag}'})">
+        <span class="trending-tag-rank${i < 3 ? ' top' : ''}">${i+1}</span>
         <span class="trending-tag-name">${tag}</span>
         <span class="trending-tag-count">${Math.floor(Math.random()*900+100)}개</span>
-      </div>
-    `).join('');
+      </div>`).join('');
   },
 
   renderHotReviews() {
@@ -391,71 +653,22 @@ const App = {
     }).join('');
   },
 
-  // =================== FEED ===================
-  renderFeed() {
-    this.renderMapPins();
-    this.renderFeedList();
-  },
-
-  renderMapPins() {
-    const el = document.getElementById('map-pins');
-    if (!el) return;
-    const pins = [
-      {x:'28%',y:'32%',label:'도쿄',hot:true},{x:'25%',y:'40%',label:'오사카'},
-      {x:'49%',y:'62%',label:'방콕',hot:true},{x:'54%',y:'48%',label:'다낭',hot:true},
-      {x:'51%',y:'35%',label:'타이베이'},{x:'30%',y:'36%',label:'제주',hot:true},
-      {x:'34%',y:'30%',label:'부산'},{x:'20%',y:'38%',label:'서울'},
-    ];
-    el.innerHTML = pins.map(p => `
-      <div class="map-pin" style="left:${p.x};top:${p.y}" onclick="App.showToast('${p.label} 후기 보기')">
-        <div class="pin-bubble${p.hot?' hot':''}">${p.label}</div>
-        <div class="pin-tail"></div>
-      </div>`).join('');
-  },
-
-  renderFeedList() {
-    const el = document.getElementById('feed-list');
-    if (!el) return;
-    const gradients = ['linear-gradient(135deg,#E8F0FF,#C8D8FF)','linear-gradient(135deg,#E8FFF8,#C8F5E8)','linear-gradient(135deg,#FFF0E8,#FFD0B8)','linear-gradient(135deg,#F5E8FF,#E8D0FF)'];
-    const icons = ['🗾','🌏','📸','🏝️'];
-    const adHtml = `
-      <div class="ad-unit" style="margin-bottom:4px" onclick="App.showToast('광고 클릭 🎉')">
-        <span class="ad-label">광고</span>
-        <div class="ad-icon" style="width:44px;height:44px;font-size:1.3rem">✈️</div>
-        <div class="ad-info">
-          <div class="ad-title" style="font-size:0.875rem">${MOCK_ADS[0].title}</div>
-          <div class="ad-cta" style="font-size:0.8125rem">${MOCK_ADS[0].cta} →</div>
-        </div>
-      </div>`;
-    el.innerHTML = adHtml + MOCK_REVIEWS.map((r, i) => {
-      const user = MOCK_USERS.find(u=>u.id===r.userId)||MOCK_USERS[0];
-      const place = MOCK_PLACES.find(p=>p.id===r.placeId);
-      return `
-        <div class="feed-card" onclick="App.navigate('review-detail',{reviewId:'${r.id}'})">
-          <div class="feed-card-thumb" style="background:${gradients[i%4]}">${icons[i%4]}</div>
-          <div class="feed-card-body">
-            <div class="feed-card-title">${r.title}</div>
-            <div class="feed-card-place">📍 ${place?.name||'장소'} · ${this.buildStars(r.rating).replace(/<[^>]+>/g,'').trim()}</div>
-          </div>
-          <div class="feed-card-footer">
-            <div style="display:flex;gap:4px">${r.ticketVerified?'<span class="verify-chip ticket">✈️</span>':''}${r.locationVerified?'<span class="verify-chip location">📍</span>':''}</div>
-            <span style="font-size:0.75rem;color:var(--text-tertiary);margin-left:auto">${this.timeAgo(r.createdAt)}</span>
-          </div>
-        </div>`;
-    }).join('');
-  },
-
   // =================== WRITE ===================
   initWrite() {
     this.writeStep = 1;
     this.ticketVerified = false;
     this.locationVerified = false;
     this.selectedRating = 0;
+    this.selectedWritePlace = null;
     this.updateWriteUI();
+    // 장소 선택 초기화
+    const resultsEl = document.getElementById('write-place-results');
+    const selectedEl = document.getElementById('write-selected-place');
+    if (resultsEl) resultsEl.style.display = 'none';
+    if (selectedEl) selectedEl.style.display = 'none';
   },
 
   updateWriteUI() {
-    // 스텝 도트 업데이트
     document.querySelectorAll('.write-step-item').forEach((item, idx) => {
       const n = idx + 1;
       const dot = item.querySelector('.write-step-dot');
@@ -465,16 +678,13 @@ const App = {
       else if (n === this.writeStep) { item.classList.add('active'); dot.classList.add('active'); dot.textContent = n; }
       else { dot.textContent = n; }
     });
-    // 스텝 라인
     for (let i = 1; i <= 3; i++) {
       const line = document.getElementById(`sline-${i}`);
       if (line) line.classList.toggle('done', i < this.writeStep);
     }
-    // 스텝 콘텐츠
     document.querySelectorAll('.write-step-content').forEach(c => c.style.display = 'none');
     const active = document.getElementById(`write-step-${this.writeStep}`);
     if (active) active.style.display = 'flex';
-    // 버튼
     const prev = document.getElementById('write-prev-btn');
     const next = document.getElementById('write-next-btn');
     const submit = document.getElementById('write-submit-btn');
@@ -484,13 +694,72 @@ const App = {
   },
 
   writeNext() {
-    if (this.writeStep === 1 && !this.ticketVerified) { this.showToast('항공권 또는 선박이용권 인증이 필요합니다', 'error'); return; }
-    if (this.writeStep === 2 && !this.locationVerified) { this.showToast('사진의 GPS/EXIF 위치 인증이 필요합니다', 'error'); return; }
+    if (this.writeStep === 1 && !this.selectedWritePlace) {
+      this.showToast('후기를 남길 장소를 선택해 주세요', 'error'); return;
+    }
+    if (this.writeStep === 2 && !this.ticketVerified) {
+      this.showToast('항공권 또는 선박이용권 인증이 필요합니다', 'error'); return;
+    }
+    if (this.writeStep === 3 && !this.locationVerified) {
+      this.showToast('사진의 GPS/EXIF 위치 인증이 필요합니다', 'error'); return;
+    }
     if (this.writeStep < 4) { this.writeStep++; this.updateWriteUI(); }
   },
 
   writePrev() {
     if (this.writeStep > 1) { this.writeStep--; this.updateWriteUI(); }
+  },
+
+  searchWritePlace() {
+    const q = document.getElementById('write-place-search')?.value?.trim();
+    if (!q) { this.showToast('장소 이름을 입력해 주세요', 'error'); return; }
+    const places = API.searchPlaces(q);
+    const resultsEl = document.getElementById('write-place-results');
+    const listEl = document.getElementById('write-place-list');
+    if (!listEl || !resultsEl) return;
+    resultsEl.style.display = 'block';
+    if (places.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-secondary)">검색 결과가 없어요. 직접 입력하거나 다른 키워드를 시도해 보세요.</div>`;
+    } else {
+      listEl.innerHTML = places.map(p => `
+        <div class="write-place-item" onclick="App.selectWritePlace('${p.id}')">
+          <span class="write-place-emoji">${p.emoji}</span>
+          <div class="write-place-info">
+            <div class="write-place-name">${p.name}</div>
+            <div class="write-place-meta">📍 ${p.city}, ${p.country} · ${p.category}</div>
+          </div>
+          <span>›</span>
+        </div>`).join('');
+    }
+  },
+
+  selectWritePlace(placeId) {
+    const place = API.getPlace(placeId);
+    if (!place) return;
+    this.selectedWritePlace = place;
+    const resultsEl = document.getElementById('write-place-results');
+    const selectedEl = document.getElementById('write-selected-place');
+    const cardEl = document.getElementById('selected-place-card');
+    if (resultsEl) resultsEl.style.display = 'none';
+    if (selectedEl) selectedEl.style.display = 'block';
+    if (cardEl) cardEl.innerHTML = `
+      <div class="selected-place-inner">
+        <span style="font-size:2rem">${place.emoji}</span>
+        <div>
+          <div style="font-weight:800;font-size:0.9375rem">${place.name}</div>
+          <div style="font-size:0.8125rem;color:var(--text-secondary);margin-top:2px">📍 ${place.city}, ${place.country} · ${place.category}</div>
+          <div style="font-size:0.75rem;color:var(--secondary-dark);margin-top:4px;font-weight:700">✅ 선택됨</div>
+        </div>
+      </div>`;
+    this.showToast(`"${place.name}" 선택 완료!`, 'success');
+  },
+
+  clearWritePlace() {
+    this.selectedWritePlace = null;
+    const selectedEl = document.getElementById('write-selected-place');
+    const inp = document.getElementById('write-place-search');
+    if (selectedEl) selectedEl.style.display = 'none';
+    if (inp) inp.value = '';
   },
 
   simulateTicketUpload() {
@@ -506,7 +775,7 @@ const App = {
           <div><div class="result-title">항공권 인증 완료</div><div class="result-sub">승객명: KIM MIN JUN · KE123 · 도쿄행</div></div>
         </div>
         <div style="font-size:0.8rem;color:var(--secondary-dark);text-align:center">개인정보는 이름 비교 후 즉시 삭제됩니다</div>`;
-      this.showToast('항공권이 인증되었습니다! ✈️', 'success');
+      this.showToast('항공권 인증 완료! ✈️', 'success');
     }, 1600);
   },
 
@@ -527,7 +796,7 @@ const App = {
         this.locationVerified = true;
         const el = document.getElementById('location-verify-result');
         if (el) el.innerHTML = `<div class="verify-result success"><div class="result-icon">📍</div><div><div class="result-title">위치 인증 완료</div><div class="result-sub">GPS: 35.6654, 139.7707 · 도쿄 츠키지 근방 확인됨</div></div></div>`;
-        this.showToast('사진 위치 정보가 확인되었습니다! 📍', 'success');
+        this.showToast('사진 위치 인증 완료! 📍', 'success');
       }, 700);
     }
   },
@@ -549,7 +818,7 @@ const App = {
     const btn = document.getElementById('write-submit-btn');
     if (btn) { btn.disabled = true; btn.textContent = '등록 중...'; }
     setTimeout(() => {
-      this.showToast('후기가 등록되었습니다! 🎉', 'success');
+      this.showToast('찐후기가 등록되었습니다! 🎉', 'success');
       setTimeout(() => this.navigate('home'), 1000);
     }, 1200);
   },
@@ -572,25 +841,19 @@ const App = {
     if (!r) return;
     const user = MOCK_USERS.find(u => u.id === r.userId) || MOCK_USERS[0];
     const place = MOCK_PLACES.find(p => p.id === r.placeId);
-    const dest = MOCK_DESTINATIONS.find(d => d.id === r.destinationId);
     const gradients = ['linear-gradient(160deg,#dce9ff,#b8d0ff)','linear-gradient(160deg,#d0fff5,#b8ffe8)','linear-gradient(160deg,#ffe8d0,#ffd0b8)'];
     const icons = ['🗾','🌏','📸'];
     const cnt = Math.min((r.photos||[]).length, 3);
 
-    // 미디어 패널
     const media = document.getElementById('detail-media');
     if (media) {
-      const photoItems = Array.from({length: Math.max(cnt,1)}, (_, i) => `
-        <div class="detail-photo${i===0?' main':''}" style="background:${gradients[i%3]};display:flex;align-items:center;justify-content:center;font-size:${i===0?'4rem':'2.5rem'}">${icons[i%3]}</div>
-      `).join('');
-      media.innerHTML = `<div class="detail-media-inner">${photoItems}</div>`;
+      media.innerHTML = `<div class="detail-media-inner">${Array.from({length:Math.max(cnt,1)},(_,i)=>`<div class="detail-photo${i===0?' main':''}" style="background:${gradients[i%3]};display:flex;align-items:center;justify-content:center;font-size:${i===0?'4rem':'2.5rem'}">${icons[i%3]}</div>`).join('')}</div>`;
     }
 
-    // 콘텐츠 패널
     const panel = document.getElementById('detail-content-panel');
     if (!panel) return;
     const linksHtml = [
-      r.youtube ? `<div class="detail-link" onclick="App.showToast('유튜브로 이동')"><span class="link-icon">▶️</span><div class="link-info"><div class="link-title">유튜브 영상 보기</div><div class="link-url">${r.youtube}</div></div><span>›</span></div>` : '',
+      r.youtube   ? `<div class="detail-link" onclick="App.showToast('유튜브로 이동')"><span class="link-icon">▶️</span><div class="link-info"><div class="link-title">유튜브 영상 보기</div><div class="link-url">${r.youtube}</div></div><span>›</span></div>` : '',
       r.instagram ? `<div class="detail-link" onclick="App.showToast('인스타그램으로 이동')"><span class="link-icon">📸</span><div class="link-info"><div class="link-title">인스타그램에서 보기</div><div class="link-url">${r.instagram}</div></div><span>›</span></div>` : '',
     ].filter(Boolean).join('');
 
@@ -608,7 +871,11 @@ const App = {
       </div>
       <div class="detail-body">
         <div class="detail-back" onclick="App.navigate('home')">‹ 목록으로</div>
-        <div><span class="detail-place-chip">📍 ${place?.name||'장소 정보 없음'}</span></div>
+        <div>
+          <span class="detail-place-chip" onclick="App.navigate('place',{placeId:'${r.placeId}'})">
+            📍 ${place?.name||'장소 정보 없음'}
+          </span>
+        </div>
         <div class="detail-title">${r.title}</div>
         ${this.buildStars(r.rating)}
         <div class="detail-user-row">
@@ -617,10 +884,10 @@ const App = {
           <span class="detail-date">${this.timeAgo(r.createdAt)}</span>
         </div>
         <div class="detail-verify-row">
-          ${r.ticketVerified?'<span class="verify-chip ticket">✈️ 항공권 인증됨</span>':''}
+          ${r.ticketVerified  ?'<span class="verify-chip ticket">✈️ 항공권 인증됨</span>':''}
           ${r.locationVerified?'<span class="verify-chip location">📍 위치 인증됨</span>':''}
-          ${r.youtube?'<span class="verify-chip youtube">▶ 유튜브</span>':''}
-          ${r.instagram?'<span class="verify-chip instagram">📸 인스타</span>':''}
+          ${r.youtube         ?'<span class="verify-chip youtube">▶ 유튜브</span>':''}
+          ${r.instagram       ?'<span class="verify-chip instagram">📸 인스타</span>':''}
         </div>
         <div class="detail-content">${r.content}</div>
         ${linksHtml ? `<div style="display:flex;flex-direction:column;gap:8px">${linksHtml}</div>` : ''}
@@ -646,7 +913,6 @@ const App = {
 
   // =================== 인증 ===================
   doLogin() {
-    // MVP: 이메일/비밀번호 무관하게 MOCK_USERS[0]으로 로그인
     this.currentUser = MOCK_USERS[0];
     setCurrentUser(this.currentUser);
     this.updateUserUI();
@@ -658,7 +924,6 @@ const App = {
     this.currentUser = null;
     setCurrentUser(null);
     this.updateUserUI();
-    this.renderHome();
     this.showToast('로그아웃 되었습니다', 'default');
     this.navigate('home');
   },
