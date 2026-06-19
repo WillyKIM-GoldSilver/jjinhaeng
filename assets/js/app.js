@@ -21,7 +21,9 @@ const App = {
   mapPlacesAutocomplete: null,
 
   init() {
-    this.currentUser = getCurrentUser();
+    // 프로토타입: 새로고침 시 항상 비로그인 상태로 시작
+    setCurrentUser(null);
+    this.currentUser = null;
     this.updateUserUI();
     this.bindGlobalEvents();
     this.renderRightPanel();
@@ -408,7 +410,7 @@ const App = {
     const mapEl = document.getElementById('google-map');
     if (!mapEl) return;
 
-    // 지도 초기화 (아시아 중심)
+    // 지도 초기화 (기본: 아시아 중심, GPS 허용 시 내 위치로 이동)
     this.googleMap = new google.maps.Map(mapEl, {
       center: { lat: 28.0, lng: 120.0 },
       zoom: 4,
@@ -430,21 +432,28 @@ const App = {
     this.mapInfoWindow = new google.maps.InfoWindow();
     this.addMapMarkers(MOCK_PLACES);
     this.bindMapSearch();
-    this.bindMapCatFilter();
 
-    // 지도 페이지가 현재 active일 때만 (navigate 타이밍 이슈 방지)
     if (this.currentPage === 'map') {
       google.maps.event.trigger(this.googleMap, 'resize');
+    }
+
+    // GPS 허용 시 내 위치로 자동 이동
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        if (!this.googleMap) return;
+        this.googleMap.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        this.googleMap.setZoom(12);
+      }, () => { /* 거부 시 기본 위치 유지 */ });
     }
   },
 
   _markerIcon(emoji, catColor) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="58" viewBox="0 0 48 58">
-      <circle cx="24" cy="24" r="22" fill="${catColor}" stroke="white" stroke-width="2.5"/>
-      <text x="24" y="32" text-anchor="middle" font-size="20">${emoji}</text>
-      <polygon points="16,44 32,44 24,56" fill="${catColor}"/>
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+      <circle cx="16" cy="15" r="14" fill="${catColor}" stroke="white" stroke-width="2"/>
+      <text x="16" y="20" text-anchor="middle" font-size="14">${emoji}</text>
+      <polygon points="10,28 22,28 16,38" fill="${catColor}"/>
     </svg>`;
-    return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(48, 58), anchor: new google.maps.Point(24, 56) };
+    return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(32, 40), anchor: new google.maps.Point(16, 38) };
   },
 
   _catColor(category) {
