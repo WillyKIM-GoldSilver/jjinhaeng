@@ -13,6 +13,13 @@ const App = {
   selectedWritePlace: null,
   currentCat: 'all',
 
+  // 구글 맵 관련
+  googleMap: null,
+  mapMarkers: [],
+  mapInfoWindow: null,
+  mapActiveCat: 'all',
+  mapPlacesAutocomplete: null,
+
   init() {
     this.currentUser = getCurrentUser();
     this.updateUserUI();
@@ -376,49 +383,134 @@ const App = {
   // =================== MAP ===================
   renderMap() {
     this.renderMapCatChips();
-    this.renderMapPins();
-    this.renderMapPlaceList();
+    this.renderMapPlaceList(MOCK_PLACES);
+
+    if (typeof google === 'undefined') {
+      // Maps API 아직 로딩 중 — 콜백(initMap)이 완료되면 initGoogleMap() 호출됨
+      const mapEl = document.getElementById('google-map');
+      if (mapEl) mapEl.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:#E8F5E9"><div style="font-size:3rem">🗺️</div><div style="font-weight:700;color:#555">지도 로딩 중...</div></div>';
+      return;
+    }
+
+    if (this.googleMap) {
+      // 이미 초기화됨 — 크기 재계산만
+      google.maps.event.trigger(this.googleMap, 'resize');
+      return;
+    }
+
+    this.initGoogleMap();
+  },
+
+  initGoogleMap() {
+    // Maps API 콜백(initMap)에서도 호출됨
+    if (this.googleMap) return;
+
+    const mapEl = document.getElementById('google-map');
+    if (!mapEl) return;
+
+    // 지도 초기화 (아시아 중심)
+    this.googleMap = new google.maps.Map(mapEl, {
+      center: { lat: 28.0, lng: 120.0 },
+      zoom: 4,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      zoomControl: false,
+      gestureHandling: 'greedy',
+      styles: [
+        { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+        { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+        { featureType: 'water', stylers: [{ color: '#C9E8F5' }] },
+        { featureType: 'landscape', stylers: [{ color: '#F3F5FB' }] },
+        { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+        { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#B0B8C1' }, { weight: 1 }] },
+      ],
+    });
+
+    this.mapInfoWindow = new google.maps.InfoWindow();
+    this.addMapMarkers(MOCK_PLACES);
+    this.bindMapSearch();
+    this.bindMapCatFilter();
+
+    // 지도 페이지가 현재 active일 때만 (navigate 타이밍 이슈 방지)
+    if (this.currentPage === 'map') {
+      google.maps.event.trigger(this.googleMap, 'resize');
+    }
+  },
+
+  _markerIcon(emoji, catColor) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="58" viewBox="0 0 48 58">
+      <circle cx="24" cy="24" r="22" fill="${catColor}" stroke="white" stroke-width="2.5"/>
+      <text x="24" y="32" text-anchor="middle" font-size="20">${emoji}</text>
+      <polygon points="16,44 32,44 24,56" fill="${catColor}"/>
+    </svg>`;
+    return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(48, 58), anchor: new google.maps.Point(24, 56) };
+  },
+
+  _catColor(category) {
+    const map = { '음식점':'#FF6B6B', '카페':'#FF9F43', '명소':'#3D5AFE', '쇼핑':'#9C59F7', '액티비티':'#00C6A2' };
+    return map[category] || '#3D5AFE';
+  },
+
+  addMapMarkers(places) {
+    // 기존 마커 제거
+    this.mapMarkers.forEach(m => m.setMap(null));
+    this.mapMarkers = [];
+
+    places.forEach(place => {
+      if (!place.lat || !place.lng) return;
+      const marker = new google.maps.Marker({
+        position: { lat: place.lat, lng: place.lng },
+        map: this.googleMap,
+        title: place.name,
+        icon: this._markerIcon(place.emoji, this._catColor(place.category)),
+        optimized: false,
+      });
+
+      marker.addListener('click', () => {
+        const content = `
+          <div style="font-family:'Pretendard',-apple-system,sans-serif;min-width:180px;padding:4px">
+            <div style="font-size:0.9rem;font-weight:800;margin-bottom:4px">${place.emoji} ${place.name}</div>
+            <div style="font-size:0.75rem;color:#6B7684;margin-bottom:6px">📍 ${place.city}, ${place.country} · ${place.category}</div>
+            <div style="font-size:0.8rem;color:#E65100;font-weight:700;margin-bottom:8px">⭐ ${place.rating.toFixed(1)} <span style="color:#6B7684;font-weight:400">(${place.reviewCount}개 후기)</span></div>
+            <button onclick="App.navigate('place',{placeId:'${place.id}'})" style="width:100%;padding:8px;background:#3D5AFE;color:white;border:none;border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;font-family:inherit">후기 보러 가기 →</button>
+          </div>`;
+        this.mapInfoWindow.setContent(content);
+        this.mapInfoWindow.open(this.googleMap, marker);
+      });
+
+      this.mapMarkers.push(marker);
+    });
+  },
+
+  filterMapMarkers(catId) {
+    this.mapActiveCat = catId;
+    // 칩 active 상태 업데이트
+    document.querySelectorAll('.map-cat-chip').forEach(el => {
+      el.classList.toggle('active', el.dataset.cat === catId);
+    });
+    const filtered = catId === 'all' ? MOCK_PLACES : MOCK_PLACES.filter(p => p.category === catId);
+    this.addMapMarkers(filtered);
+    this.renderMapPlaceList(filtered);
   },
 
   renderMapCatChips() {
     const el = document.getElementById('map-cat-chips');
     if (!el) return;
     el.innerHTML = PLACE_CATEGORIES.map(c => `
-      <div class="map-cat-chip" onclick="App.showToast('${c.label} 필터')">
+      <div class="map-cat-chip${c.id === this.mapActiveCat ? ' active' : ''}" data-cat="${c.id}"
+           onclick="App.filterMapMarkers('${c.id}')">
         ${c.icon} ${c.label}
       </div>`).join('');
   },
 
-  renderMapPins() {
-    const el = document.getElementById('map-pins');
-    if (!el) return;
-    const pinData = [
-      { x:'28%', y:'32%', name:'도쿄', hot:true  },
-      { x:'25%', y:'41%', name:'오사카', hot:false },
-      { x:'49%', y:'63%', name:'방콕', hot:true  },
-      { x:'54%', y:'48%', name:'다낭', hot:true  },
-      { x:'51%', y:'35%', name:'타이베이', hot:false },
-      { x:'30%', y:'36%', name:'제주', hot:true  },
-      { x:'34%', y:'30%', name:'부산', hot:false },
-      { x:'20%', y:'38%', name:'서울', hot:false },
-      { x:'16%', y:'52%', name:'파리', hot:false },
-      { x:'43%', y:'45%', name:'홍콩', hot:true  },
-    ];
-    el.innerHTML = pinData.map(p => `
-      <div class="map-pin" style="left:${p.x};top:${p.y}"
-           onclick="App.showToast('${p.name} 장소 목록')">
-        <div class="pin-bubble${p.hot?' hot':''}">${p.name}</div>
-        <div class="pin-tail"></div>
-      </div>`).join('');
-  },
-
-  renderMapPlaceList() {
+  renderMapPlaceList(places = MOCK_PLACES) {
     const el = document.getElementById('map-place-list');
     if (!el) return;
-    const places = API.getPopularPlaces(10);
-    document.getElementById('map-place-count').textContent = `${places.length}개`;
+    const countEl = document.getElementById('map-place-count');
+    if (countEl) countEl.textContent = `${places.length}개`;
     el.innerHTML = places.map(p => `
-      <div class="map-place-item" onclick="App.navigate('place',{placeId:'${p.id}'})">
+      <div class="map-place-item" onclick="App.focusMapPlace('${p.id}')">
         <div class="map-place-emoji">${p.emoji}</div>
         <div class="map-place-info">
           <div class="map-place-name">${p.name}</div>
@@ -426,6 +518,52 @@ const App = {
         </div>
         <span class="map-place-arrow">›</span>
       </div>`).join('');
+  },
+
+  focusMapPlace(placeId) {
+    const place = API.getPlace(placeId);
+    if (!place || !this.googleMap) { this.navigate('place', { placeId }); return; }
+    this.googleMap.panTo({ lat: place.lat, lng: place.lng });
+    this.googleMap.setZoom(14);
+    const marker = this.mapMarkers.find(m => m.getTitle() === place.name);
+    if (marker) google.maps.event.trigger(marker, 'click');
+  },
+
+  mapZoom(delta) {
+    if (!this.googleMap) return;
+    this.googleMap.setZoom(this.googleMap.getZoom() + delta);
+  },
+
+  mapMyLocation() {
+    if (!navigator.geolocation) { this.showToast('위치 정보를 사용할 수 없어요', 'error'); return; }
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (!this.googleMap) return;
+      const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      this.googleMap.panTo(latlng);
+      this.googleMap.setZoom(13);
+      new google.maps.Marker({ position: latlng, map: this.googleMap, title: '내 위치', icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="8" fill="#3D5AFE" stroke="white" stroke-width="2"/></svg>'), scaledSize: new google.maps.Size(20, 20) } });
+      this.showToast('현재 위치로 이동했어요', 'success');
+    }, () => this.showToast('위치 접근 권한이 필요해요', 'error'));
+  },
+
+  bindMapSearch() {
+    const input = document.getElementById('map-search-input');
+    if (!input || typeof google === 'undefined') return;
+    const autocomplete = new google.maps.places.Autocomplete(input, {
+      types: ['establishment', 'geocode'],
+    });
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (!place.geometry) return;
+      this.googleMap.panTo(place.geometry.location);
+      this.googleMap.setZoom(15);
+      new google.maps.Marker({ position: place.geometry.location, map: this.googleMap, title: place.name });
+      this.showToast(`"${place.name}" 로 이동`, 'success');
+    });
+  },
+
+  bindMapCatFilter() {
+    // 초기화 이후 cat chips 클릭은 filterMapMarkers()로 연결됨 — 별도 바인딩 불필요
   },
 
   // =================== SEARCH ===================
