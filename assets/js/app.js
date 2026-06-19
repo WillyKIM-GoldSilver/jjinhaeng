@@ -18,6 +18,10 @@ const App = {
   mapMarkers: [],
   mapInfoWindow: null,
   mapActiveCat: 'all',
+  mapLens: 'all', // 'all' | 'tourist' | 'local' — 관광지/로컬 발견 렌즈
+  mapCity: 'all', // 선택된 도시로 지도 고정 (온보딩에서 설정)
+  _pannedCity: null,
+  obStep: 0,
   mapPlacesAutocomplete: null,
 
   init() {
@@ -32,8 +36,81 @@ const App = {
   hideLoading() {
     const el = document.getElementById('app-loading');
     el.classList.add('fade-out');
-    setTimeout(() => { el.style.display = 'none'; this.renderHome(); }, 450);
+    setTimeout(() => { el.style.display = 'none'; this.renderHome(); this.maybeShowOnboarding(); }, 450);
   },
+
+  // ─── 온보딩 (가치 먼저·로그인 나중, 첫 방문만) ──────────────
+  // 장면 내용은 데이터로 분리 — 문구/순서 수정은 이 배열만 고치면 됨.
+  ONBOARDING_SCENES: [
+    { emoji: '🗺️', visual: 'toggle', title: '관광지는 이미 다 알아요',
+      body: '진짜는 현지인이 가는 곳이죠.\n찐행은 여행지의 <b>로컬</b>을 보여줍니다.' },
+    { emoji: '🇰🇷', visual: 'verify', title: '한국인이 직접 다녀와 인증한 후기',
+      body: '항공권·GPS 인증으로 실제 방문을 증명해\n가짜 후기 없이 믿을 수 있어요.' },
+    { emoji: '✈️', visual: 'cities', title: '어디로 떠나세요?',
+      body: '도시를 고르면 그곳의 로컬 지도가 열려요.' },
+  ],
+
+  maybeShowOnboarding() {
+    if (localStorage.getItem('jjinhaeng_onboarded')) return;
+    this.obStep = 0;
+    const ov = document.createElement('div');
+    ov.id = 'onboarding';
+    ov.className = 'onboarding';
+    document.body.appendChild(ov);
+    this.renderOnboardingStep();
+  },
+
+  _obVisual(kind) {
+    if (kind === 'toggle') return `
+      <div class="ob-toggle"><span>전체</span><span>관광지</span><span class="on">로컬</span></div>`;
+    if (kind === 'verify') return `
+      <div class="ob-chips"><span class="ob-chip">✈️ 항공권 인증</span><span class="ob-chip">📍 GPS 인증</span></div>`;
+    if (kind === 'cities') {
+      const cities = [...new Set(MOCK_PLACES.map(p => p.city))];
+      return `<div class="ob-cities">${cities.map(c =>
+        `<button class="ob-city" onclick="App.startInCity('${c}')">📍 ${c}</button>`).join('')}</div>`;
+    }
+    return '';
+  },
+
+  renderOnboardingStep() {
+    const ov = document.getElementById('onboarding');
+    if (!ov) return;
+    const scenes = this.ONBOARDING_SCENES;
+    const s = scenes[this.obStep];
+    const last = this.obStep === scenes.length - 1;
+    const dots = scenes.map((_, i) => `<span class="ob-dot${i === this.obStep ? ' active' : ''}"></span>`).join('');
+    ov.innerHTML = `
+      <div class="ob-backdrop"></div>
+      <div class="ob-card">
+        <button class="ob-skip" onclick="App.finishOnboarding()">건너뛰기</button>
+        <div class="ob-emoji">${s.emoji}</div>
+        <div class="ob-visual">${this._obVisual(s.visual)}</div>
+        <h2 class="ob-title">${s.title}</h2>
+        <p class="ob-body">${s.body.replace(/\n/g, '<br>')}</p>
+        <div class="ob-dots">${dots}</div>
+        ${last ? '' : `<button class="ob-next" onclick="App.onboardingNext()">다음</button>`}
+      </div>`;
+  },
+
+  onboardingNext() { this.obStep++; this.renderOnboardingStep(); },
+
+  finishOnboarding() {
+    localStorage.setItem('jjinhaeng_onboarded', '1');
+    const ov = document.getElementById('onboarding');
+    if (ov) ov.remove();
+  },
+
+  // 장면3에서 도시 선택 → 온보딩 종료 + 그 도시로 지도 고정 진입 (로그인 X)
+  startInCity(city) {
+    this.finishOnboarding();
+    this.mapCity = city;
+    this._pannedCity = null;
+    this.navigate('map');
+  },
+
+  // 외부에서 온보딩 다시 보기 (테스트/설정용)
+  resetOnboarding() { localStorage.removeItem('jjinhaeng_onboarded'); this.maybeShowOnboarding(); },
 
   requireLogin(action) {
     if (this.currentUser) { action && action(); return; }
@@ -234,6 +311,19 @@ const App = {
     el.innerHTML = places.map(p => this.buildPlaceCard(p)).join('');
   },
 
+  // 인증·버킷 메타 렌더 — 단일 소스(SSOT). 문구/색/형식을 여기서 한 번에 바꾸면 전 화면 반영.
+  // opts.full: "한국인 N명 인증"(상세) vs "인증 N"(카드/리스트) / opts.withRating: ⭐ 보조 표기
+  buildLocalMeta(place, opts = {}) {
+    const meta = this._bucketMeta(place.localBucket);
+    const n = place.koreanVerifiedCount || 0;
+    const verifyText = opts.full ? `🇰🇷 한국인 ${n}명 인증` : `🇰🇷 인증 ${n}`;
+    const rating = opts.withRating && place.rating != null
+      ? `<span class="lm-rating">⭐ ${place.rating.toFixed(1)}</span>` : '';
+    return `<span class="local-tag" style="background:${meta.bg};color:${meta.fg}">${meta.label}</span>`
+         + `<span class="kr-verify">${verifyText}</span>`
+         + rating;
+  },
+
   buildPlaceCard(place) {
     const catColors = {
       '음식점': 'linear-gradient(135deg,#FFE8D0,#FFB380)',
@@ -254,8 +344,7 @@ const App = {
           <div class="place-card-name">${place.name}</div>
           <div class="place-card-city">📍 ${place.city}, ${place.country}</div>
           <div class="place-card-meta">
-            <span class="place-card-rating">⭐ ${place.rating.toFixed(1)}</span>
-            <span class="place-card-count">(${place.reviewCount})</span>
+            ${this.buildLocalMeta(place, { withRating: true })}
             ${priceStr ? `<span class="place-card-price">${priceStr}</span>` : ''}
           </div>
           <div class="place-card-tags">${(place.tags||[]).slice(0,3).map(t=>`<span class="place-tag">#${t}</span>`).join('')}</div>
@@ -384,8 +473,9 @@ const App = {
 
   // =================== MAP ===================
   renderMap() {
+    this.renderMapLensToggle();
     this.renderMapCatChips();
-    this.renderMapPlaceList(MOCK_PLACES);
+    this.applyMapFilters();
 
     if (typeof google === 'undefined') {
       // Maps API 아직 로딩 중 — 콜백(initMap)이 완료되면 initGoogleMap() 호출됨
@@ -430,7 +520,7 @@ const App = {
     });
 
     this.mapInfoWindow = new google.maps.InfoWindow();
-    this.addMapMarkers(MOCK_PLACES);
+    this.applyMapFilters();
     this.bindMapSearch();
 
     if (this.currentPage === 'map') {
@@ -461,6 +551,37 @@ const App = {
     return map[category] || '#3D5AFE';
   },
 
+  // 버킷별 라벨/색 — 로컬=teal, 혼합=amber, 관광지=gray
+  _bucketMeta(bucket) {
+    return {
+      local:   { label: '로컬',   color: '#00C6A2', bg: '#E1F5EE', fg: '#0F6E56' },
+      mixed:   { label: '혼합',   color: '#F59E0B', bg: '#FAEEDA', fg: '#854F0B' },
+      tourist: { label: '관광지', color: '#8A94A6', bg: '#EEF0F3', fg: '#5F6B7A' },
+    }[bucket] || { label: '', color: '#8A94A6', bg: '#EEF0F3', fg: '#5F6B7A' };
+  },
+
+  // 마커 위계 = 메시지: 로컬은 튀고(teal 핀+🇰🇷 인증 뱃지), 관광지는 물러난다(회색 점)
+  _localMarkerIcon(place) {
+    const bucket = place.localBucket || 'tourist';
+    if (bucket === 'tourist') {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="#8A94A6" stroke="white" stroke-width="2"/></svg>`;
+      return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(14, 14), anchor: new google.maps.Point(7, 7) };
+    }
+    const color = this._bucketMeta(bucket).color;
+    const n = place.koreanVerifiedCount || 0;
+    const bw = n >= 100 ? 24 : 19;
+    const badge = bucket === 'local'
+      ? `<rect x="20" y="0" rx="7" height="15" width="${bw}" fill="#00C6A2" stroke="white" stroke-width="1.5"/><text x="${20 + bw/2}" y="11" text-anchor="middle" font-size="9" font-weight="bold" fill="white">${n}</text>`
+      : '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="46" height="42" viewBox="0 0 46 42">
+      <circle cx="16" cy="15" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+      <text x="16" y="20" text-anchor="middle" font-size="14">${place.emoji}</text>
+      <polygon points="10,28 22,28 16,38" fill="${color}"/>
+      ${badge}
+    </svg>`;
+    return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(46, 42), anchor: new google.maps.Point(16, 40) };
+  },
+
   addMapMarkers(places) {
     // 기존 마커 제거
     this.mapMarkers.forEach(m => m.setMap(null));
@@ -472,16 +593,19 @@ const App = {
         position: { lat: place.lat, lng: place.lng },
         map: this.googleMap,
         title: place.name,
-        icon: this._markerIcon(place.emoji, this._catColor(place.category)),
+        icon: this._localMarkerIcon(place),
+        zIndex: place.localBucket === 'local' ? 100 : place.localBucket === 'mixed' ? 50 : 1,
         optimized: false,
       });
 
       marker.addListener('click', () => {
+        const meta = this._bucketMeta(place.localBucket);
         const content = `
           <div style="font-family:'Pretendard',-apple-system,sans-serif;min-width:180px;padding:4px">
-            <div style="font-size:0.9rem;font-weight:800;margin-bottom:4px">${place.emoji} ${place.name}</div>
+            <div style="font-size:0.9rem;font-weight:800;margin-bottom:4px">${place.emoji} ${place.name}
+              <span style="font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:999px;background:${meta.bg};color:${meta.fg};margin-left:4px">${meta.label}</span></div>
             <div style="font-size:0.75rem;color:#6B7684;margin-bottom:6px">📍 ${place.city}, ${place.country} · ${place.category}</div>
-            <div style="font-size:0.8rem;color:#E65100;font-weight:700;margin-bottom:8px">⭐ ${place.rating.toFixed(1)} <span style="color:#6B7684;font-weight:400">(${place.reviewCount}개 후기)</span></div>
+            <div style="font-size:0.8rem;color:#0F6E56;font-weight:700;margin-bottom:8px">🇰🇷 한국인 ${place.koreanVerifiedCount}명 인증 방문 <span style="color:#6B7684;font-weight:400">· ⭐ ${place.rating.toFixed(1)}</span></div>
             <button onclick="App.navigate('place',{placeId:'${place.id}'})" style="width:100%;padding:8px;background:#3D5AFE;color:white;border:none;border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;font-family:inherit">후기 보러 가기 →</button>
           </div>`;
         this.mapInfoWindow.setContent(content);
@@ -498,9 +622,61 @@ const App = {
     document.querySelectorAll('.map-cat-chip').forEach(el => {
       el.classList.toggle('active', el.dataset.cat === catId);
     });
-    const filtered = catId === 'all' ? MOCK_PLACES : MOCK_PLACES.filter(p => p.category === catId);
-    this.addMapMarkers(filtered);
-    this.renderMapPlaceList(filtered);
+    this.applyMapFilters();
+  },
+
+  // 관광지/로컬 발견 렌즈 전환
+  setMapLens(lens) {
+    this.mapLens = lens;
+    this.renderMapLensToggle();
+    this.applyMapFilters();
+  },
+
+  renderMapLensToggle() {
+    const el = document.getElementById('map-lens-toggle');
+    if (!el) return;
+    const lenses = [
+      { id: 'all', label: '전체' },
+      { id: 'tourist', label: '관광지' },
+      { id: 'local', label: '로컬' },
+    ];
+    el.innerHTML = lenses.map(l => `
+      <button class="map-lens-btn${l.id === this.mapLens ? ' active' : ''}" data-lens="${l.id}"
+              onclick="App.setMapLens('${l.id}')">${l.label}</button>`).join('');
+  },
+
+  // 도시 + 렌즈(로컬도) + 카테고리 결합 필터. 어느 모드에서도 장소를 삭제하지 않음 — 정렬·강조 렌즈.
+  applyMapFilters() {
+    let places = API.getLocalPlaces(this.mapCity, this.mapLens);
+    if (this.mapActiveCat && this.mapActiveCat !== 'all') {
+      places = places.filter(p => p.category === this.mapActiveCat);
+    }
+    if (this.googleMap) { this.addMapMarkers(places); this._maybePanToCity(); }
+    this.renderMapPlaceList(places);
+    const titleEl = document.querySelector('.map-panel-title');
+    if (titleEl) titleEl.innerHTML = this.mapCity === 'all'
+      ? '📍 이 지역 장소'
+      : `📍 ${this.mapCity} <span class="map-city-reset" onclick="App.setMapCity('all')">✕ 전체 도시</span>`;
+  },
+
+  setMapCity(city) {
+    this.mapCity = city;
+    this._pannedCity = null;
+    this.applyMapFilters();
+  },
+
+  // 도시 선택 시 1회만 해당 도시 중심으로 지도 이동 (렌즈 토글 시 재이동 안 함)
+  _maybePanToCity() {
+    if (!this.googleMap || this.mapCity === 'all' || this._pannedCity === this.mapCity) return;
+    const inCity = MOCK_PLACES.filter(p => p.city === this.mapCity);
+    if (!inCity.length) return;
+    const center = {
+      lat: inCity.reduce((s, p) => s + p.lat, 0) / inCity.length,
+      lng: inCity.reduce((s, p) => s + p.lng, 0) / inCity.length,
+    };
+    this.googleMap.panTo(center);
+    this.googleMap.setZoom(12);
+    this._pannedCity = this.mapCity;
   },
 
   renderMapCatChips() {
@@ -518,12 +694,24 @@ const App = {
     if (!el) return;
     const countEl = document.getElementById('map-place-count');
     if (countEl) countEl.textContent = `${places.length}개`;
+    if (!places.length) {
+      el.innerHTML = `
+        <div class="map-empty">
+          <div class="map-empty-emoji">🧭</div>
+          <div class="map-empty-text">${this.mapLens === 'local' ? '아직 이곳엔 인증된 로컬 장소가 없어요' : '조건에 맞는 장소가 아직 없어요'}</div>
+          <button class="map-empty-btn" onclick="App.setMapLens('all')">전체로 보기</button>
+        </div>`;
+      return;
+    }
     el.innerHTML = places.map(p => `
       <div class="map-place-item" onclick="App.focusMapPlace('${p.id}')">
         <div class="map-place-emoji">${p.emoji}</div>
         <div class="map-place-info">
           <div class="map-place-name">${p.name}</div>
-          <div class="map-place-meta">⭐ ${p.rating.toFixed(1)} · ${p.city} · ${p.category}</div>
+          <div class="map-place-meta">
+            ${this.buildLocalMeta(p)}
+            <span>· ${p.city}</span>
+          </div>
         </div>
         <span class="map-place-arrow">›</span>
       </div>`).join('');
@@ -696,8 +884,8 @@ const App = {
             <h1 class="place-detail-name">${place.name}</h1>
             <div class="place-detail-location">📍 ${place.city}, ${place.country}</div>
             <div class="place-detail-meta-row">
-              <span class="place-rating-big">⭐ ${place.rating.toFixed(1)}</span>
-              <span class="place-review-cnt">(${place.reviewCount}개 후기)</span>
+              ${this.buildLocalMeta(place, { full: true, withRating: true })}
+              <span class="place-review-cnt">· 후기 ${place.reviewCount}개</span>
               ${priceStr ? `<span class="place-price">${priceStr}</span>` : ''}
             </div>
             <div class="place-detail-address">🏠 ${place.address}</div>

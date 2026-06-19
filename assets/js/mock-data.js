@@ -247,6 +247,79 @@ const MOCK_PLACES = [
   },
 ];
 
+// =============================================
+// 로컬도(localScore) 모델 — "여행지의 로컬" 발견 렌즈
+// localScore는 콘텐츠를 거르는 문이 아니라 발견을 돕는 렌즈(0~100 연속값).
+// 유명 관광지도 한국인 리뷰를 그대로 받는다 — 토글은 정렬·강조만 바꾼다.
+// =============================================
+const LOCAL_SCORE_CONFIG = {
+  weights: { geo: 0.5, api: 0.3, chain: 0.2 }, // prior 비중 (합=1)
+  smoothingK: 8,                                // 신뢰 전환 속도 (8표면 50% 신뢰)
+  geoMaxKm: 3,                                  // geoScore 정규화 분모
+  buckets: { tourist: 35, local: 65 },         // 라벨 경계 (관광지/혼합/로컬)
+  toggleSplit: 50,                             // 관광지/로컬 토글 필터 기준점
+};
+
+// 장소별 로컬도 입력 데이터 — 점수는 computeLocalScore가 산출(하드코딩 아님).
+// touristApiId: TourAPI 등재 식별자(없으면 null) / isChain: 프랜차이즈 여부
+// distToTouristCore: 관광 중심에서의 거리(km) / koreanVerifiedCount: 🇰🇷 인증 방문 수
+// localTags: 한국인 인증자 태그 투표(현지인많음 vs 관광객많음)
+const PLACE_LOCAL_DATA = {
+  p001: { touristApiId: null,     isChain: false, distToTouristCore: 0.6, koreanVerifiedCount: 96,  localTags: { 현지인많음: 71, 관광객많음: 22 } },
+  p002: { touristApiId: 'T13002', isChain: false, distToTouristCore: 0.0, koreanVerifiedCount: 540, localTags: { 현지인많음: 8,  관광객많음: 300 } },
+  p006: { touristApiId: null,     isChain: true,  distToTouristCore: 0.4, koreanVerifiedCount: 380, localTags: { 현지인많음: 40, 관광객많음: 160 } },
+  p015: { touristApiId: 'T13015', isChain: false, distToTouristCore: 0.1, koreanVerifiedCount: 700, localTags: { 현지인많음: 20, 관광객많음: 400 } },
+  p005: { touristApiId: null,     isChain: true,  distToTouristCore: 0.2, koreanVerifiedCount: 300, localTags: { 현지인많음: 30, 관광객많음: 140 } },
+  p007: { touristApiId: 'T27007', isChain: false, distToTouristCore: 0.1, koreanVerifiedCount: 600, localTags: { 현지인많음: 30, 관광객많음: 320 } },
+  p016: { touristApiId: null,     isChain: false, distToTouristCore: 0.7, koreanVerifiedCount: 88,  localTags: { 현지인많음: 60, 관광객많음: 14 } },
+  p003: { touristApiId: null,     isChain: false, distToTouristCore: 1.4, koreanVerifiedCount: 210, localTags: { 현지인많음: 150, 관광객많음: 30 } },
+  p008: { touristApiId: 'T39008', isChain: false, distToTouristCore: 0.2, koreanVerifiedCount: 280, localTags: { 현지인많음: 40, 관광객많음: 160 } },
+  p017: { touristApiId: 'T39017', isChain: false, distToTouristCore: 0.1, koreanVerifiedCount: 500, localTags: { 현지인많음: 30, 관광객많음: 300 } },
+  p004: { touristApiId: null,     isChain: false, distToTouristCore: 0.5, koreanVerifiedCount: 120, localTags: { 현지인많음: 50, 관광객많음: 70 } },
+  p009: { touristApiId: 'V48009', isChain: false, distToTouristCore: 0.0, koreanVerifiedCount: 150, localTags: { 현지인많음: 5,  관광객많음: 180 } },
+  p010: { touristApiId: 'B66010', isChain: false, distToTouristCore: 0.1, koreanVerifiedCount: 400, localTags: { 현지인많음: 20, 관광객많음: 280 } },
+  p011: { touristApiId: 'B66011', isChain: false, distToTouristCore: 0.3, koreanVerifiedCount: 200, localTags: { 현지인많음: 90, 관광객많음: 120 } },
+  p012: { touristApiId: 'F75012', isChain: false, distToTouristCore: 0.0, koreanVerifiedCount: 700, localTags: { 현지인많음: 10, 관광객많음: 500 } },
+  p018: { touristApiId: null,     isChain: false, distToTouristCore: 0.9, koreanVerifiedCount: 140, localTags: { 현지인많음: 95, 관광객많음: 30 } },
+  p013: { touristApiId: null,     isChain: false, distToTouristCore: 1.1, koreanVerifiedCount: 160, localTags: { 현지인많음: 120, 관광객많음: 25 } },
+  p014: { touristApiId: 'K26014', isChain: false, distToTouristCore: 0.2, koreanVerifiedCount: 350, localTags: { 현지인많음: 30, 관광객많음: 250 } },
+  p019: { touristApiId: 'W88019', isChain: false, distToTouristCore: 0.4, koreanVerifiedCount: 240, localTags: { 현지인많음: 100, 관광객많음: 115 } },
+  p020: { touristApiId: 'W88020', isChain: false, distToTouristCore: 0.1, koreanVerifiedCount: 130, localTags: { 현지인많음: 15, 관광객많음: 140 } },
+};
+
+// 확신 가중(confidence blend): 데이터 추정(prior) → 한국인 행동(tag)으로 이전.
+// n=0이면 100% prior(빈 캔버스 방지), 표가 쌓일수록 tagScore로 정밀화.
+function computeLocalScore(place) {
+  const cfg = LOCAL_SCORE_CONFIG, w = cfg.weights;
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+  const geoScore   = clamp01((place.distToTouristCore || 0) / cfg.geoMaxKm);
+  const apiScore   = place.touristApiId ? 0 : 1; // 등재 관광지면 0
+  const chainScore = place.isChain ? 0 : 1;      // 체인이면 0
+  const prior = w.geo * geoScore + w.api * apiScore + w.chain * chainScore;
+  const tags = place.localTags || {};
+  const local = tags['현지인많음'] || 0, tourist = tags['관광객많음'] || 0;
+  const votes = local + tourist;
+  const tagScore = votes > 0 ? local / votes : prior; // 표 없으면 prior로 폴백
+  const n = place.koreanVerifiedCount || 0;
+  const c = n / (n + cfg.smoothingK);
+  return Math.round(100 * (c * tagScore + (1 - c) * prior));
+}
+
+// 점수 → 버킷 라벨 (관광지 / 혼합 / 로컬)
+function getLocalBucket(score) {
+  const b = LOCAL_SCORE_CONFIG.buckets;
+  if (score <= b.tourist) return 'tourist';
+  if (score >= b.local)   return 'local';
+  return 'mixed';
+}
+
+// 로드 시 1회: 입력 데이터 병합 + localScore 캐시
+MOCK_PLACES.forEach(p => {
+  Object.assign(p, PLACE_LOCAL_DATA[p.id] || {});
+  p.localScore = computeLocalScore(p);
+  p.localBucket = getLocalBucket(p.localScore);
+});
+
 // 리뷰 — 장소(placeId) 중심
 const MOCK_REVIEWS = [
   {
@@ -473,6 +546,26 @@ API.getPopularPlaces = function(limit, category) {
   let places = [...MOCK_PLACES];
   if (category) places = places.filter(p => p.category === category);
   return places.sort((a,b) => b.reviewCount - a.reviewCount).slice(0, limit || 8);
+};
+
+// 통합 헬퍼: 도시 + 관광지/로컬 토글 렌즈.
+// mode 'all'     → 전체, 인증순(디폴트)
+// mode 'tourist' → score < toggleSplit, 인증 많은 순(유명한 곳 위로)
+// mode 'local'   → score >= toggleSplit, 로컬도 높은 순(숨은 곳 발굴)
+// ⚠️ 어느 모드에서도 장소를 삭제하지 않음 — 토글은 필터·정렬 렌즈일 뿐.
+API.getLocalPlaces = function(city, mode = 'all') {
+  const split = LOCAL_SCORE_CONFIG.toggleSplit;
+  let places = MOCK_PLACES.slice();
+  if (city && city !== 'all') places = places.filter(p => p.city === city);
+  if (mode === 'tourist') {
+    return places.filter(p => p.localScore < split)
+                 .sort((a,b) => b.koreanVerifiedCount - a.koreanVerifiedCount);
+  }
+  if (mode === 'local') {
+    return places.filter(p => p.localScore >= split)
+                 .sort((a,b) => b.localScore - a.localScore || b.koreanVerifiedCount - a.koreanVerifiedCount);
+  }
+  return places.sort((a,b) => b.koreanVerifiedCount - a.koreanVerifiedCount);
 };
 
 const SESSION_TIMEOUT = 20 * 60 * 1000; // 20분 (ms)
